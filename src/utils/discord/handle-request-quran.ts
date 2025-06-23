@@ -4,6 +4,7 @@ import { Database } from '../../types/generated/database.types';
 import { getSupabaseClient } from '../get-supabase-client';
 import { serializedInteraction } from './serialized-interaction';
 import { WDiscordCommandResult } from '../../types/w-discord-command-result';
+import { logError } from '../log-error';
 
 export class HandleQuranRequest extends DiscordRequest {
   constructor(
@@ -25,6 +26,7 @@ export class HandleQuranRequest extends DiscordRequest {
         components,
       });
     } catch (error: any) {
+      logError(error, `(/${this.interaction.commandName})`);
       await this.interaction.reply({
         content: `\`${error.message || 'Internal Server Error'}\``,
         flags: ['Ephemeral'],
@@ -42,26 +44,33 @@ export class HandleQuranRequest extends DiscordRequest {
 
     if (!query) throw new Error(`Missing query`);
 
-    const fetchURL = new URL(`https://api.wikisubmission.org/quran/search`);
+    const fetchURL = new URL(`https://quran.wikisubmission.org/quran`);
 
     fetchURL.searchParams.append('q', query);
-    fetchURL.searchParams.append('highlight', 'true');
-    fetchURL.searchParams.append('ngc', 'true');
+    fetchURL.searchParams.append('normalize_god_casing', 'true');
     if (this.getStringInput('strict-search') !== 'yes') {
-      fetchURL.searchParams.append('iwo', 'true');
+      fetchURL.searchParams.append('search_strategy', 'exact');
     }
+    fetchURL.searchParams.append('search_apply_highlight', 'true');
+    fetchURL.searchParams.append('include_language', this.targetLanguage());
 
     const req = await fetch(fetchURL);
 
     const request: {
-      results: Database['public']['Tables']['DataQuran']['Row'][];
-      error?: { name: string; description: string };
+      response: {
+        data: (Database['public']['Tables']['ws-quran']['Row'] & Database['public']['Tables']['ws-quran-foreign']['Row'])[];
+      }
+      message?: string;
     } = await req.json();
 
-    if (request?.results && !request.error) {
-      const title = this.title(request.results);
-      const description = this.description(request.results);
+    if (request?.response?.data.length > 0) {
+      const title = this.title(request.response.data);
+      const description = this.description(request.response.data);
       const footer = this.footer();
+
+      if (!description || description.length === 0 || description[0].length === 0) {
+        throw new Error(`No ${this.options?.footnoteOnly ? 'footnote' : 'verse'} found with "${query}"`);
+      }
 
       // Multi-page? Cache interaction.
       if (description.length > 1) {
@@ -82,7 +91,7 @@ export class HandleQuranRequest extends DiscordRequest {
 
       return {
         content: this.isSearchRequest()
-          ? `Found **${request.results.length}** verses with \`${query}\``
+          ? `Found **${request.response.data.length}** verses with \`${query}\``
           : undefined,
         embeds: [
           new EmbedBuilder()
@@ -96,31 +105,31 @@ export class HandleQuranRequest extends DiscordRequest {
         components:
           description.length > 1
             ? [
-                new ActionRowBuilder<any>().setComponents(
-                  ...(this.page > 1
-                    ? [
-                        new ButtonBuilder()
-                          .setLabel('Previous page')
-                          .setCustomId(`page_${this.page - 1}`)
-                          .setStyle(2),
-                      ]
-                    : []),
+              new ActionRowBuilder<any>().setComponents(
+                ...(this.page > 1
+                  ? [
+                    new ButtonBuilder()
+                      .setLabel('Previous page')
+                      .setCustomId(`page_${this.page - 1}`)
+                      .setStyle(2),
+                  ]
+                  : []),
 
-                  ...(this.page !== description.length
-                    ? [
-                        new ButtonBuilder()
-                          .setLabel('Next page')
-                          .setCustomId(`page_${this.page + 1}`)
-                          .setStyle(1),
-                      ]
-                    : []),
-                ),
-              ]
+                ...(this.page !== description.length
+                  ? [
+                    new ButtonBuilder()
+                      .setLabel('Next page')
+                      .setCustomId(`page_${this.page + 1}`)
+                      .setStyle(1),
+                  ]
+                  : []),
+              ),
+            ]
             : [],
       };
     } else {
       throw new Error(
-        `${request?.error?.description || `No verse/(s) found with "${query}"`}`,
+        `${request?.message || `No verse/(s) found with "${query}"`}`,
       );
     }
   }
@@ -128,7 +137,7 @@ export class HandleQuranRequest extends DiscordRequest {
   // Helper methods.
 
   private title(
-    data: Database['public']['Tables']['DataQuran']['Row'][],
+    data: Database['public']['Tables']['ws-quran']['Row'][],
   ): string {
     const language = this.targetLanguage();
     if (!data || data.length === 0) return '--';
@@ -142,10 +151,10 @@ export class HandleQuranRequest extends DiscordRequest {
       for (const verse of data) {
         if (verse.chapter_number !== baseChapter) return 'Multiple Chapters';
       }
-      return `Sura ${data[0].chapter_number}, ${data[0][_resolveLanguageToChapterKey()]} (${data[0].chapter_title_arabic_transliteration})`;
+      return `Sura ${data[0].chapter_number}, ${data[0][_resolveLanguageToChapterKey()]} (${data[0].chapter_title_transliterated})`;
     }
 
-    function _resolveLanguageToChapterKey(): keyof Database['public']['Tables']['DataQuran']['Row'] {
+    function _resolveLanguageToChapterKey(): keyof Database['public']['Tables']['ws-quran']['Row'] {
       switch (language) {
         case 'englishAndArabic':
           return 'chapter_title_english';
@@ -153,14 +162,14 @@ export class HandleQuranRequest extends DiscordRequest {
           return 'chapter_title_english';
         default:
           return `chapter_title_${language}` in data
-            ? (`chapter_title_${language}` as keyof Database['public']['Tables']['DataQuran']['Row'])
+            ? (`chapter_title_${language}` as keyof Database['public']['Tables']['ws-quran']['Row'])
             : `chapter_title_english`;
       }
     }
   }
 
   private description(
-    data: Database['public']['Tables']['DataQuran']['Row'][],
+    data: Database['public']['Tables']['ws-quran']['Row'][],
   ): string[] {
     const noCommentary = this.getStringInput('no-footnotes') === 'yes';
     const arabic = this.getStringInput('with-arabic') === 'yes';
@@ -168,11 +177,6 @@ export class HandleQuranRequest extends DiscordRequest {
       this.getStringInput('with-transliteration') === 'yes';
 
     let description = '';
-
-    const westernNumeralsPreferenceUsers = [
-      '835330532584980491',
-      '771800475410497576',
-    ];
 
     let [iteration, maxVerses, reachedLimit] = [0, 300, false];
 
@@ -199,11 +203,11 @@ export class HandleQuranRequest extends DiscordRequest {
             this.interaction.commandName === 'aquran') &&
           !this.options?.footnoteOnly
         ) {
-          description += `(${westernNumeralsPreferenceUsers.includes(this.interaction.user?.id) ? i.verse_id : i.verse_id_arabic}) ${i.verse_text_arabic}\n\n`;
+          description += `(${i.verse_id_arabic}) ${i.verse_text_arabic}\n\n`;
         }
 
         if (transliteration && !this.options?.footnoteOnly) {
-          description += `${i.verse_text_arabic_transliteration}\n\n`;
+          description += `${i.verse_text_transliterated}\n\n`;
         }
 
         if (!noCommentary || this.options?.footnoteOnly) {
@@ -222,11 +226,11 @@ export class HandleQuranRequest extends DiscordRequest {
   }
 
   descriptionSubtitleComponent(
-    i: Database['public']['Tables']['DataQuran']['Row'],
+    i: any,
   ) {
     const language = this.targetLanguage();
 
-    if (!i.verse_subtitle_english || !i.verse_subtitle_turkish) return '';
+    if (!i.verse_subtitle_english) return '';
 
     switch (language) {
       case 'english':
@@ -249,10 +253,9 @@ export class HandleQuranRequest extends DiscordRequest {
   }
 
   private descriptionTextComponent(
-    i: Database['public']['Tables']['DataQuran']['Row'],
+    i: any,
   ) {
-    let descriptionKey: keyof Database['public']['Tables']['DataQuran']['Row'] =
-      'verse_text_english';
+    let descriptionKey = 'verse_text_english';
 
     switch (this.targetLanguage()) {
       case 'english':
@@ -297,7 +300,7 @@ export class HandleQuranRequest extends DiscordRequest {
   }
 
   private descriptionTextVerseIdComponent(
-    i: Database['public']['Tables']['DataQuran']['Row'],
+    i: Database['public']['Tables']['ws-quran']['Row'] & Database['public']['Tables']['ws-quran-foreign']['Row'],
   ) {
     {
       switch (this.targetLanguage()) {
@@ -314,9 +317,9 @@ export class HandleQuranRequest extends DiscordRequest {
   }
 
   private descriptionFootnoteComponent(
-    i: Database['public']['Tables']['DataQuran']['Row'],
+    i: any,
   ) {
-    if (!i.verse_footnote_english || !i.verse_footnote_turkish) return '';
+    if (!i.verse_footnote_english) return '';
 
     switch (this.targetLanguage()) {
       case 'english':
