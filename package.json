@@ -1,5 +1,5 @@
 {
-  "name": "wikisubmission-discord-service",
+  "name": "wikisubmission-discord-public",
   "version": "1.0.0",
   "description": "Public Discord bot for WikiSubmission.",
   "main": "index.js",
@@ -25,6 +25,7 @@
     "minimist": "^1.2.8",
     "node-cache": "^5.1.2",
     "rimraf": "^6.0.1",
+    "supabase": "^2.26.9",
     "typescript": "^5.8.3"
   }
 }
