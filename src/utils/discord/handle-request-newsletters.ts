@@ -4,6 +4,7 @@ import { WDiscordCommandResult } from '../../types/w-discord-command-result';
 import { Database } from '../../types/generated/database.types';
 import { getSupabaseClient } from '../get-supabase-client';
 import { serializedInteraction } from './serialized-interaction';
+import { logError } from '../log-error';
 
 export class HandleNewslettersRequest extends DiscordRequest {
   constructor(
@@ -22,6 +23,7 @@ export class HandleNewslettersRequest extends DiscordRequest {
         components,
       });
     } catch (error: any) {
+      logError(error, `(/${this.interaction.commandName})`);
       await this.interaction.reply({
         content: `\`${error.message || 'Internal Server Error'}\``,
         flags: ['Ephemeral'],
@@ -57,10 +59,8 @@ export class HandleNewslettersRequest extends DiscordRequest {
         request.results
           .map(
             (i) =>
-              `[${i.sp_year} ${capitalize(i.sp_month)}, page ${
-                i.sp_page
-              }](https://www.masjidtucson.org/publications/books/sp/${
-                i.sp_year
+              `[${i.sp_year} ${capitalize(i.sp_month)}, page ${i.sp_page
+              }](https://www.masjidtucson.org/publications/books/sp/${i.sp_year
               }/${i.sp_month}/page${i.sp_page}.html) - ${i.sp_content}`,
           )
           .join('\n\n'),
@@ -93,44 +93,42 @@ export class HandleNewslettersRequest extends DiscordRequest {
             .setTitle(title)
             .setDescription(description[this.page - 1])
             .setFooter({
-              text: `${footer}${
-                description.length > 1
+              text: `${footer}${description.length > 1
                   ? ` • Page ${this.page}/${description.length}`
                   : ``
-              }`,
+                }`,
             })
             .setColor('DarkButNotBlack'),
         ],
         components:
           description.length > 1
             ? [
-                new ActionRowBuilder<any>().setComponents(
-                  ...(this.page > 1
-                    ? [
-                        new ButtonBuilder()
-                          .setLabel('Previous page')
-                          .setCustomId(`page_${this.page - 1}`)
-                          .setStyle(2),
-                      ]
-                    : []),
+              new ActionRowBuilder<any>().setComponents(
+                ...(this.page > 1
+                  ? [
+                    new ButtonBuilder()
+                      .setLabel('Previous page')
+                      .setCustomId(`page_${this.page - 1}`)
+                      .setStyle(2),
+                  ]
+                  : []),
 
-                  ...(this.page !== description.length
-                    ? [
-                        new ButtonBuilder()
-                          .setLabel('Next page')
-                          .setCustomId(`page_${this.page + 1}`)
-                          .setStyle(1),
-                      ]
-                    : []),
-                ),
-              ]
+                ...(this.page !== description.length
+                  ? [
+                    new ButtonBuilder()
+                      .setLabel('Next page')
+                      .setCustomId(`page_${this.page + 1}`)
+                      .setStyle(1),
+                  ]
+                  : []),
+              ),
+            ]
             : [],
       };
     } else {
       throw new Error(
-        `${
-          request?.error?.description ||
-          `No newsletter instances found with "${query}"`
+        `${request?.error?.description ||
+        `No newsletter instances found with "${query}"`
         }`,
       );
     }

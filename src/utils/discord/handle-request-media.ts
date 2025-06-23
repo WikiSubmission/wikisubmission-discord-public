@@ -4,6 +4,7 @@ import { WDiscordCommandResult } from '../../types/w-discord-command-result';
 import { Database } from '../../types/generated/database.types';
 import { getSupabaseClient } from '../get-supabase-client';
 import { serializedInteraction } from './serialized-interaction';
+import { logError } from '../log-error';
 
 export class HandleMediaRequest extends DiscordRequest {
   constructor(
@@ -22,6 +23,7 @@ export class HandleMediaRequest extends DiscordRequest {
         components,
       });
     } catch (error: any) {
+      logError(error, `(/${this.interaction.commandName})`);
       await this.interaction.reply({
         content: `\`${error.message || 'Internal Server Error'}\``,
         flags: ['Ephemeral'],
