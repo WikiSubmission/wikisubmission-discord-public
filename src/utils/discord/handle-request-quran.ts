@@ -98,26 +98,26 @@ export class HandleQuranRequest extends DiscordRequest {
         components:
           description.length > 1
             ? [
-                new ActionRowBuilder<any>().setComponents(
-                  ...(this.page > 1
-                    ? [
-                        new ButtonBuilder()
-                          .setLabel('Previous page')
-                          .setCustomId(`page_${this.page - 1}`)
-                          .setStyle(2),
-                      ]
-                    : []),
+              new ActionRowBuilder<any>().setComponents(
+                ...(this.page > 1
+                  ? [
+                    new ButtonBuilder()
+                      .setLabel('Previous page')
+                      .setCustomId(`page_${this.page - 1}`)
+                      .setStyle(2),
+                  ]
+                  : []),
 
-                  ...(this.page !== description.length
-                    ? [
-                        new ButtonBuilder()
-                          .setLabel('Next page')
-                          .setCustomId(`page_${this.page + 1}`)
-                          .setStyle(1),
-                      ]
-                    : []),
-                ),
-              ]
+                ...(this.page !== description.length
+                  ? [
+                    new ButtonBuilder()
+                      .setLabel('Next page')
+                      .setCustomId(`page_${this.page + 1}`)
+                      .setStyle(1),
+                  ]
+                  : []),
+              ),
+            ]
             : [],
       };
     } else {
@@ -228,20 +228,20 @@ export class HandleQuranRequest extends DiscordRequest {
     switch (language) {
       case 'english':
         return this._safeMarkdown(
-          `${this._codify(i.verse_subtitle_english, this.interaction.commandName === 'search-quran')}\n\n`,
-        );
+          `${this._codify(i.verse_subtitle_english, this.interaction.commandName === 'search-quran')}`, true
+        ) + '\n\n';
       case 'turkish':
         return this._safeMarkdown(
-          `${this._codify(i.verse_subtitle_turkish, this.interaction.commandName === 'search-quran')}\n\n`,
-        );
+          `${this._codify(i.verse_subtitle_turkish, this.interaction.commandName === 'search-quran')}`, true
+        ) + '\n\n';
       case 'tamil':
         return this._safeMarkdown(
-          `${this._codify(i.verse_subtitle_tamil, this.interaction.commandName === 'search-quran')}\n\n`,
-        );
+          `${this._codify(i.verse_subtitle_tamil, this.interaction.commandName === 'search-quran')}`, true
+        ) + '\n\n';
       default:
         return this._safeMarkdown(
-          `${this._codify(i.verse_subtitle_english, this.interaction.commandName === 'search-quran')}\n\n`,
-        );
+          `${this._codify(i.verse_subtitle_english, this.interaction.commandName === 'search-quran')}`, true
+        ) + '\n\n';
     }
   }
 
