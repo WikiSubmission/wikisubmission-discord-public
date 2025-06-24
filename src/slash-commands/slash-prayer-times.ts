@@ -114,8 +114,8 @@ export default function command(): WSlashCommand {
               .setColor('DarkButNotBlack'),
           ],
           flags: interaction.options.get('publicly-visible')?.value === 'yes'
-            ? ['Ephemeral']
-            : undefined,
+            ? undefined
+            : ['Ephemeral'],
         });
       } else {
         await interaction.reply({
