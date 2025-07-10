@@ -81,11 +81,21 @@ export class DiscordRequest {
   }
 
   _safeMarkdown(s?: string | null, codify?: boolean): string {
+    const query = this.getStringInput('query') || '';
+
     if (!s) return s || '';
-    if (codify) {
-      return `\`${s.replace(/\*/g, '')}\``;
+
+    const isSearchCommand = this.interaction?.commandName?.trim().startsWith('search');
+    const queryStartsWithInt = /^[+-]?\d+/.test(query.trim());
+
+    // Do not format if a verse query (e.g. "1:1") made through /search (nothing to highlight).
+    if (isSearchCommand && !queryStartsWithInt) {
+      return s;
     }
-    return s ? s.replace(/(?<!\*)\*{1,2}(?!\*)/g, '±') : s || '';
+
+    if (codify) return `\`${s.replace(/\*/g, '')}\``;
+
+    return s?.replace(/(?<!\*)\*{1,2}(?!\*)/g, '±') || '';
   }
 
   _codify(s?: string | null, dismiss?: boolean): string {
