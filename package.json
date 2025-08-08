@@ -27,6 +27,6 @@
     "rimraf": "^6.0.1",
     "supabase": "^2.26.9",
     "typescript": "^5.8.3",
-    "wikisubmission-sdk": "^1.0.2"
+    "wikisubmission-sdk": "^1.0.5"
   }
 }
