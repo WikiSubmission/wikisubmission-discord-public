@@ -1,6 +1,6 @@
 import { ApplicationCommandOptionType, EmbedBuilder } from 'discord.js';
 import { WSlashCommand } from '../types/w-slash-command';
-import { Database } from '../types/generated/database.types';
+import { ws } from '../utils/wikisubmission-sdk';
 
 export default function command(): WSlashCommand {
   return {
@@ -31,23 +31,23 @@ export default function command(): WSlashCommand {
         return;
       }
 
-      const request = await fetch(
-        `https://api.wikisubmission.org/quran/word-by-word/${query}`,
-      );
+      const request = await ws.query(query, {
+        include_word_by_word: true,
+      });
 
-      const result: {
-        results: Database['public']['Tables']['DataQuranWordByWord']['Row'][];
-        error?: { name: string; description: string };
-      } = await request.json();
-
-      if (result && result.results && !result.error) {
+      if (request instanceof ws.Error) {
+        await interaction.reply({
+          content: `\`${request.message}\``,
+          flags: ['Ephemeral'],
+        });
+      } else {
         await interaction.reply({
           embeds: [
             new EmbedBuilder()
               .setTitle(`${query} – Word by Word`)
 
               .setDescription(
-                `${result.results.map((w) => `**${w.transliterated_text} (${w.arabic_text}) (${w.root_word_1})**\n\`${w.english_text}\``).join('\n\n')}`.substring(
+                `${request.response[0].word_by_word.map((w) => `**${w.transliterated_text} (${w.arabic_text}) (${w.root_word})**\n\`${w.english_text}\``).join('\n\n')}`.substring(
                   0,
                   4000,
                 ),
@@ -57,11 +57,6 @@ export default function command(): WSlashCommand {
               })
               .setColor('DarkButNotBlack'),
           ],
-        });
-      } else {
-        await interaction.reply({
-          content: `\`Verse not found\``,
-          flags: ['Ephemeral'],
         });
       }
     },

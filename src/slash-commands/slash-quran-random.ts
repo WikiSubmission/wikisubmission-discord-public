@@ -1,6 +1,6 @@
 import { ApplicationCommandOptionType, EmbedBuilder } from 'discord.js';
 import { WSlashCommand } from '../types/w-slash-command';
-import { Database } from '../types/generated/database.types';
+import { ws } from '../utils/wikisubmission-sdk';
 
 export default function command(): WSlashCommand {
   return {
@@ -30,38 +30,34 @@ export default function command(): WSlashCommand {
       tr: 'Rastgele ayet',
     },
     execute: async (interaction) => {
-      const request = await fetch(
-        `https://api.wikisubmission.org/quran/random-verse?ngc=true`,
-      );
 
-      const result: {
-        results: Database['public']['Tables']['DataQuran']['Row'][];
-        error?: { name: string; description: string };
-      } = await request.json();
+      const request = await ws.getRandomVerse({
+        include_language: ['turkish']
+      });
 
-      if (result && result.results && !result.error) {
+      if (request instanceof ws.Error) {
+        await interaction.reply({
+          content: `\`${request.message}\``,
+          flags: ['Ephemeral'],
+        });
+      } else {
         let isTurkish =
           interaction.options.get('language')?.value === 'turkish' ||
-          interaction.locale === 'tr';
-
-        if (interaction.options.get('language')?.value === 'english') {
-          isTurkish = false;
-        }
+          (interaction.locale === 'tr' && interaction.options.get('language')?.value !== 'english');
 
         await interaction.reply({
           embeds: [
             new EmbedBuilder()
               .setTitle(
                 isTurkish
-                  ? `Sure ${result.results[0].chapter_number}, ${result.results[0].chapter_title_turkish}`
-                  : `Sura ${result.results[0].chapter_number}, ${result.results[0].chapter_title_english}`,
+                  ? `Sure ${request.response[0].chapter_number}, ${request.response[0].chapter_title_turkish}`
+                  : `Sura ${request.response[0].chapter_number}, ${request.response[0].chapter_title_english}`,
               )
               .setDescription(
-                `**[${result.results[0].verse_id}]** ${
-                  result.results[0][
-                    isTurkish ? 'verse_text_turkish' : 'verse_text_english'
-                  ]
-                }\n\n${result.results[0].verse_text_arabic}`,
+                `**[${request.response[0].verse_id}]** ${request.response[0][
+                isTurkish ? 'verse_text_turkish' : 'verse_text_english'
+                ]
+                }\n\n${request.response[0].verse_text_arabic}`,
               )
               .setFooter({
                 text: isTurkish
@@ -70,11 +66,6 @@ export default function command(): WSlashCommand {
               })
               .setColor('DarkButNotBlack'),
           ],
-        });
-      } else {
-        await interaction.reply({
-          content: `\`API Error\``,
-          flags: ['Ephemeral'],
         });
       }
     },
