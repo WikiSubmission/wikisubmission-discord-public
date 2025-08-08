@@ -40,7 +40,7 @@ export default function command(): WSlashCommand {
       const verse = interaction.options.get('verse', true).value as string;
       const translation =
         (interaction.options.get('translation')?.value as string | undefined) ||
-        'bbe';
+        'asv';
 
       try {
         const response = await fetch(
