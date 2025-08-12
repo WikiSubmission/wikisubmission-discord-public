@@ -67,7 +67,7 @@ export class HandleQuranRequest extends DiscordRequest {
         includeMarkdownFormatting: true,
         includeArabic: (this.getStringInput('with-arabic') === 'yes' || this.interaction.commandName === 'equran' || this.interaction.commandName === 'aquran') && this.options?.footnoteOnly !== true,
         includeSubtitles: this.getStringInput('no-footnotes') !== 'yes' && this.options?.footnoteOnly !== true,
-        includeFootnotes: this.getStringInput('no-footnotes') !== 'yes' || this.options?.footnoteOnly !== true,
+        includeFootnotes: this.getStringInput('no-footnotes') !== 'yes' && this.options?.footnoteOnly !== true,
         includeTransliteration: this.getStringInput('with-transliteration') === 'yes' && this.options?.footnoteOnly !== true,
         removeMainText: this.options?.footnoteOnly === true,
       });
