@@ -60,53 +60,53 @@ export default function command(): WSlashCommand {
       const req = await fetch(fetchURL);
 
       const request: {
-        results: any;
-        error?: { name: string; description: string };
+        [string: string]: any;
+        error?: string;
       } = await req.json();
 
-      if (request && request.results && !request.error) {
+      if (request && request && !request.error) {
         await interaction.reply({
           embeds: [
             new EmbedBuilder()
-              .setTitle(request.results.location_string)
-              .setDescription(request.results.status_string)
+              .setTitle(request.location_string)
+              .setDescription(request.status_string)
               .addFields(
                 {
                   name: 'Local Time',
-                  value: codify(request.results.local_time),
+                  value: codify(request.local_time),
                 },
                 {
                   name: 'Now',
                   value: codify(
-                    `${capitalized(request.results.current_prayer)}`,
+                    `${capitalized(request.current_prayer)}`,
                   ),
                 },
                 {
                   name: 'Up Next',
                   value: codify(
-                    `${capitalized(request.results.upcoming_prayer)} (${request.results.upcoming_prayer_time_left
+                    `${capitalized(request.upcoming_prayer)} (${request.upcoming_prayer_time_left
                     } left)`,
                   ),
                 },
                 {
                   name: 'Schedule',
                   value: codify(
-                    `Fajr: ${request.results.times.fajr}\nDhuhr: ${request.results.times.dhuhr}\nAsr: ${request.results.times.asr}\nMaghrib: ${request.results.times.maghrib}\nIsha: ${request.results.times.isha}\n\nSunrise: ${request.results.times.sunrise}`,
+                    `Fajr: ${request.times.fajr}\nDhuhr: ${request.times.dhuhr}\nAsr: ${request.times.asr}\nMaghrib: ${request.times.maghrib}\nIsha: ${request.times.isha}\n\nSunrise: ${request.times.sunrise}`,
                   ),
                 },
                 {
                   name: 'Coordinates',
                   value: codify(
-                    `${request.results.coordinates.latitude}, ${request.results.coordinates.longitude}`,
+                    `${request.coordinates.latitude}, ${request.coordinates.longitude}`,
                   ),
                 },
               )
               .setAuthor({
                 name: `Prayer Times`,
-                iconURL: `https://flagcdn.com/48x36/${request.results.country_code.toLowerCase()}.png`,
+                iconURL: `https://flagcdn.com/48x36/${request.country_code.toLowerCase()}.png`,
               })
               .setFooter({
-                text: request.results.local_timezone,
+                text: request.local_timezone,
               })
               .setColor('DarkButNotBlack'),
           ],
@@ -116,7 +116,7 @@ export default function command(): WSlashCommand {
         });
       } else {
         await interaction.reply({
-          content: `\`${request?.error?.description || 'Internal Server Error'
+          content: `\`${request?.error || 'Internal Server Error'
             }\``,
           flags: ['Ephemeral'],
         });
