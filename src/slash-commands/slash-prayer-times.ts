@@ -50,11 +50,8 @@ export default function command(): WSlashCommand {
       },
     ],
     execute: async (interaction) => {
-      const fetchURL = new URL(`https://api.wikisubmission.org/prayer-times`);
-      fetchURL.searchParams.append(
-        'q',
-        `${interaction.options.get('location')!.value}`,
-      );
+      const fetchURL = new URL(`https://practices.wikisubmission.org/prayer-times/${interaction.options.get('location')!.value}`);
+
       fetchURL.searchParams.append('highlight', 'true');
       if (interaction.options.get('asr-adjustment')?.value === 'yes') {
         fetchURL.searchParams.append('asr_adjustment', 'true');
