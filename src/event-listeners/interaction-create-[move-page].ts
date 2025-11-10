@@ -1,11 +1,8 @@
+import { EmbedBuilder, ActionRowBuilder, ButtonBuilder } from 'discord.js';
 import { WDiscordCommandResult } from "../types/w-discord-command-result";
 import { WEventListener } from "../types/w-event-listener";
-import { authenticateMember } from "../utils/discord/authenticate-member";
-import { HandleMediaRequest } from "../utils/discord/handle-request-media";
-import { HandleNewslettersRequest } from "../utils/discord/handle-request-newsletters";
-import { HandleQuranRequest } from "../utils/discord/handle-request-quran";
-import { SerializedInteraction } from "../utils/discord/serialized-interaction";
-import { getSupabaseClient } from "../utils/get-supabase-client";
+import { authenticateMember } from "../utils/authenticate-member";
+import { getCachedPageData } from "../utils/cache-interaction";
 
 export default function listener(): WEventListener {
   return {
@@ -13,23 +10,19 @@ export default function listener(): WEventListener {
     handler: async (interaction) => {
       if (interaction.isButton()) {
         if (interaction.customId.startsWith('page_')) {
-          // Get cached interaction.
-          const db = getSupabaseClient();
-          const request = await db
-            .from('GlobalCache')
-            .select('*')
-            .eq('key', interaction.message.interactionMetadata?.id || '')
-            .single();
 
-          if (request && request.data?.value) {
-            const cachedInteraction: SerializedInteraction = JSON.parse(
-              request.data.value,
-            );
+          const interactionId = interaction.message.interactionMetadata?.id;
+          if (!interactionId) return;
+
+          // Get cached pagination data (tries DB first, falls back to local cache)
+          const cachedData = await getCachedPageData(interactionId);
+
+          if (cachedData) {
 
             // Verify if requestor can change the page.
             if (
               // Original requester.
-              cachedInteraction.user === interaction.user.id ||
+              cachedData.user_id === interaction.user.id ||
               // Or, insider and above.
               authenticateMember(interaction.member, 'INSIDER_AND_ABOVE')
             ) {
@@ -39,54 +32,89 @@ export default function listener(): WEventListener {
                 10,
               );
 
-              // Get new data.
+            // Validate page number
+            if (desiredPage > cachedData.total_pages) {
+              await interaction.reply({
+                content: '`You\'ve reached the last page`',
+                flags: ['Ephemeral'],
+              });
+              return;
+            }
+
+            if (desiredPage <= 0) {
+              await interaction.reply({
+                content: '`You\'re on the first page`',
+                flags: ['Ephemeral'],
+              });
+              return;
+            }
+
+            try {
+              // Defer the update to prevent interaction timeout
+              await interaction.deferUpdate();
+
+              // Get the page content from cached content array
+              const pageDescription = cachedData.content[desiredPage - 1];
+              const truncatedDescription = pageDescription.length > 4096
+                ? pageDescription.substring(0, 4093) + ''
+                : pageDescription;
+
+              // Create the response
+              const output: WDiscordCommandResult = {
+                content: undefined,
+                embeds: [
+                  new EmbedBuilder()
+                    .setTitle(cachedData.title)
+                    .setDescription(truncatedDescription)
+                    .setFooter({
+                      text: `${cachedData.footer} • Page ${desiredPage}/${cachedData.total_pages}`,
+                    })
+                    .setColor('DarkButNotBlack'),
+                ],
+                components: [
+                  new ActionRowBuilder<any>().setComponents(
+                    ...(desiredPage > 1
+                      ? [
+                        new ButtonBuilder()
+                          .setLabel('Previous page')
+                          .setCustomId(`page_${desiredPage - 1}`)
+                          .setStyle(2),
+                      ]
+                      : []),
+
+                    ...(desiredPage !== cachedData.total_pages
+                      ? [
+                        new ButtonBuilder()
+                          .setLabel('Next page')
+                          .setCustomId(`page_${desiredPage + 1}`)
+                          .setStyle(1),
+                      ]
+                      : []),
+                  ),
+                ],
+              };
+
+              // Update the embed.
+              await interaction.editReply({
+                content: output.content,
+                embeds: output.embeds,
+                components: output.components,
+              });
+            } catch (error: any) {
+              // Errors thrown from re-processing the request, or otherwise an internal error.
               try {
-                let output: WDiscordCommandResult;
-
-                switch (cachedInteraction.commandName) {
-                  case 'search-newsletters':
-                    output = await new HandleNewslettersRequest(
-                      cachedInteraction,
-                      desiredPage,
-                    ).getResults();
-                    break;
-
-                  case 'search-media':
-                    output = await new HandleMediaRequest(
-                      cachedInteraction,
-                      desiredPage,
-                    ).getResults();
-                    break;
-
-                  default: // === "search-quran"
-                    output = await new HandleQuranRequest(
-                      cachedInteraction,
-                      desiredPage,
-                    ).getResults();
-                }
-
-                // Update the embed.
-                if (output) {
-                  await interaction.update({
-                    content: output.content,
-                    embeds: output.embeds,
-                    components: output.components,
-                  });
-                } else {
-                  // Would be weird if we end up here, but might as well add it:
-                  await interaction.reply({
-                    content: `\`Unknown command\``,
-                    flags: ['Ephemeral'],
-                  });
-                }
-              } catch (error: any) {
-                // Errors thrown from re-processing the request, or otherwise an internal error.
-                await interaction.reply({
+                await interaction.editReply({
+                  content: `\`${error.message || 'Internal Server Error'}\``,
+                });
+              } catch (editError) {
+                // If edit fails, try to follow up instead
+                await interaction.followUp({
                   content: `\`${error.message || 'Internal Server Error'}\``,
                   flags: ['Ephemeral'],
                 });
               }
-            } else {
+            }
+          } else {
               // User not authorized to change page.
               await interaction.reply({
                 content:
@@ -96,7 +124,7 @@ export default function listener(): WEventListener {
               return;
             }
           } else {
-            // Cached interaction not found in DB.
+            // Cached data not found in DB.
             await interaction.reply({
               content: '`Request expired. Please make a new one.`',
               flags: ['Ephemeral'],

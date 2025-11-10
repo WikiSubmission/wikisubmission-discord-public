@@ -4,9 +4,8 @@ import { getFileExports } from "../utils/get-file-exports";
 import { WSlashCommand } from '../types/w-slash-command';
 import { getCliParams } from '../utils/get-cli-params';
 import { logError } from '../utils/log-error';
-import { parseInteraction } from '../utils/discord/parse-interaction';
-import { authenticateMember } from '../utils/discord/authenticate-member';
-import { ScheduledTaskManager } from '../utils/discord/create-scheduled-action';
+import { parseInteraction } from '../utils/parse-interaction';
+import { authenticateMember } from '../utils/authenticate-member';
 import { WEventListener } from '../types/w-event-listener';
 
 export class Bot {
@@ -44,30 +43,28 @@ export class Bot {
 
         // [Event listeners]
         await this.registerEventListeners();
-
-        // [Scheduled tasks]
-        await this.registerScheduledTasks();
     }
 
     async getCredentials(): Promise<{
         token: string;
         clientId: string;
     }> {
-        // [Default to .env file]
+        // [Default to a specific bot if specified]
         if (process.env.BOT_TOKEN && process.env.BOT_CLIENT_ID) {
             return {
                 token: process.env.BOT_TOKEN,
                 clientId: process.env.BOT_CLIENT_ID
             }
         }
-        // [Fetch keys from cloud - for WikiSubmission]
+
+        // [Otherwise, conditional prod/dev bot based on NODE_ENV]
         return {
-            token: await getEnv(
+            token: getEnv(
                 process.env.NODE_ENV === 'production'
                     ? 'DISCORD_TOKEN_WIKISUBMISSION'
                     : 'DISCORD_TOKEN_WIKISUBMISSION_DEVELOPMENT',
             ),
-            clientId: await getEnv(
+            clientId: getEnv(
                 process.env.NODE_ENV === 'production'
                     ? 'DISCORD_CLIENTID_WIKISUBMISSION'
                     : 'DISCORD_CLIENTID_WIKISUBMISSION_DEVELOPMENT',
@@ -170,26 +167,6 @@ export class Bot {
         console.log(
             `Listening for events: ${eventListeners
                 .map((e) => e.name)
-                .join(', ')}`,
-        );
-    }
-
-    async registerScheduledTasks(): Promise<void> {
-        // [Get scheduled tasks data from files]
-        const scheduledActions = await getFileExports<ScheduledTaskManager>(
-            '/scheduled-tasks', {
-            ignoreIfNotFound: true
-        }
-        );
-
-        if (!scheduledActions || scheduledActions.length === 0) {
-            console.log(`No scheduled tasks found`);
-            return;
-        }
-
-        console.log(
-            `Scheduled tasks: ${scheduledActions
-                .map((s) => s.action.id)
                 .join(', ')}`,
         );
     }

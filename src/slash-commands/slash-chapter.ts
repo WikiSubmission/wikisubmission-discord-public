@@ -22,7 +22,7 @@ export default function command(): WSlashCommand {
         },
       },
       {
-        name: 'no-footnotes',
+        name: 'no-commentary',
         description: 'Ignore subtitles & footnotes?',
         type: ApplicationCommandOptionType.String,
         choices: [

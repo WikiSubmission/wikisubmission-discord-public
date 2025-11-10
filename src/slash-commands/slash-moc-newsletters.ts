@@ -1,6 +1,6 @@
 import { ApplicationCommandOptionType } from 'discord.js';
 import { WSlashCommand } from '../types/w-slash-command';
-import { HandleNewslettersRequest } from '../utils/discord/handle-request-newsletters';
+import { HandleNewslettersRequest } from '../utils/handle-request-newsletters';
 
 export default function command(): WSlashCommand {
   return {

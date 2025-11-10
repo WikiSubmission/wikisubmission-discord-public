@@ -31,13 +31,11 @@ export default function command(): WSlashCommand {
     },
     execute: async (interaction) => {
 
-      const request = await ws.getRandomVerse({
-        include_language: ['turkish']
-      });
+      const request = await ws.Quran.randomVerse();
 
-      if (request instanceof ws.Error) {
+      if (request.error) {
         await interaction.reply({
-          content: `\`${request.message}\``,
+          content: `\`${request.error}\``,
           flags: ['Ephemeral'],
         });
       } else {
@@ -50,14 +48,12 @@ export default function command(): WSlashCommand {
             new EmbedBuilder()
               .setTitle(
                 isTurkish
-                  ? `Sure ${request.response[0].chapter_number}, ${request.response[0].chapter_title_turkish}`
-                  : `Sura ${request.response[0].chapter_number}, ${request.response[0].chapter_title_english}`,
+                  ? `Sure ${request.data.chapter_number}, ${request.data.ws_quran_chapters.title_turkish}`
+                  : `Sura ${request.data.chapter_number}, ${request.data.ws_quran_chapters.title_english}`,
               )
               .setDescription(
-                `**[${request.response[0].verse_id}]** ${request.response[0][
-                isTurkish ? 'verse_text_turkish' : 'verse_text_english'
-                ]
-                }\n\n${request.response[0].verse_text_arabic}`,
+                `**[${request.data.verse_id}]** ${request.data.ws_quran_text?.[isTurkish ? 'turkish' : 'english']
+                }\n\n${request.data.ws_quran_text.arabic}`,
               )
               .setFooter({
                 text: isTurkish

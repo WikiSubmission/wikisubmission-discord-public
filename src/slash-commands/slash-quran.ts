@@ -1,5 +1,5 @@
 import { WSlashCommand } from '../types/w-slash-command';
-import { HandleQuranRequest } from '../utils/discord/handle-request-quran';
+import { HandleQuranRequest } from '../utils/handle-request-quran';
 import { ApplicationCommandOptionType } from 'discord.js';
 
 export default function command(): WSlashCommand {
@@ -20,7 +20,7 @@ export default function command(): WSlashCommand {
         },
       },
       {
-        name: 'no-footnotes',
+        name: 'no-commentary',
         description: 'Ignore subtitles & footnotes?',
         type: ApplicationCommandOptionType.String,
         choices: [

@@ -1,6 +1,6 @@
 import { ApplicationCommandOptionType } from 'discord.js';
 import { WSlashCommand } from '../types/w-slash-command';
-import { HandleMediaRequest } from '../utils/discord/handle-request-media';
+import { HandleMediaRequest } from '../utils/handle-request-media';
 
 export default function command(): WSlashCommand {
   return {

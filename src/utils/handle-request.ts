@@ -47,6 +47,8 @@ export class DiscordRequest {
           return 'tamil';
         case 'german':
           return 'german';
+        case 'bengali':
+          return 'bengali';
         default:
           return 'english';
       }
@@ -75,27 +77,11 @@ export class DiscordRequest {
         return 'tamil';
       case 'gquran':
         return 'german';
+      case 'bequran':
+        return 'bengali';
       default:
         return 'english';
     }
-  }
-
-  _safeMarkdown(s?: string | null, codify?: boolean): string {
-    const query = this.getStringInput('query') || '';
-
-    if (!s) return s || '';
-
-    const isSearchCommand = this.interaction?.commandName?.trim().startsWith('search');
-    const queryStartsWithInt = /^[+-]?\d+/.test(query.trim());
-
-    // Do not format if a verse query (e.g. "1:1") made through /search (nothing to highlight).
-    if (isSearchCommand && !queryStartsWithInt) {
-      return s;
-    }
-
-    if (codify) return `\`${s.replace(/\*/g, '')}\``;
-
-    return s?.replace(/(?<!\*)\*{1,2}(?!\*)/g, '±') || '';
   }
 
   _codify(s?: string | null, dismiss?: boolean): string {

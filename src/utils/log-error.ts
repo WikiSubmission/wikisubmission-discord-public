@@ -1,13 +1,5 @@
 import { DiscordAPIError, HTTPError } from 'discord.js';
 
-/**
- * Logs a structured error message to the console with source trace.
- * Differentiates Discord API errors, HTTP errors, and general Node errors.
- * Automatically includes source file and line from the calling context.
- *
- * @param error - The error object (DiscordAPIError, HTTPError, generic Error, or unknown)
- * @param context - A string label describing the error context (e.g., function or module name)
- */
 export function logError(error: unknown, context: string = 'Discord Error'): void {
     const source = getCallerInfo(); // Infer the file and line number that called this function
 
@@ -32,12 +24,6 @@ export function logError(error: unknown, context: string = 'Discord Error'): voi
     }
 }
 
-/**
- * Extracts the location (file and line number) of the function that called `logDiscordError`.
- * Uses stack trace manipulation to find the first relevant frame outside this module.
- *
- * @returns A string representing the calling file/function/line, or 'unknown source' if unavailable.
- */
 function getCallerInfo(): string {
     const obj = {};
     Error.captureStackTrace(obj, getCallerInfo); // Remove getCallerInfo from the stack trace

@@ -1,10 +1,9 @@
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder } from 'discord.js';
 import { DiscordRequest } from './handle-request';
-import { WDiscordCommandResult } from '../../types/w-discord-command-result';
-import { Database } from '../../types/generated/database.types';
-import { getSupabaseClient } from '../get-supabase-client';
-import { serializedInteraction } from './serialized-interaction';
-import { logError } from '../log-error';
+import { WDiscordCommandResult } from '../types/w-discord-command-result';
+import { cachePageData } from './cache-interaction';
+import { logError } from './log-error';
+import { ws } from './wikisubmission-sdk';
 
 export class HandleNewslettersRequest extends DiscordRequest {
   constructor(
@@ -16,18 +15,28 @@ export class HandleNewslettersRequest extends DiscordRequest {
 
   async getResultsAndReply(): Promise<void> {
     try {
+      // Defer the reply to prevent interaction timeout
+      await this.interaction.deferReply();
+      
       const { embeds, components, content } = await this.getResults();
-      await this.interaction.reply({
+      await this.interaction.editReply({
         content,
         embeds,
         components,
       });
     } catch (error: any) {
       logError(error, `(/${this.interaction.commandName})`);
-      await this.interaction.reply({
-        content: `\`${error.message || 'Internal Server Error'}\``,
-        flags: ['Ephemeral'],
-      });
+      try {
+        await this.interaction.editReply({
+          content: `\`${error.message || 'Internal Server Error'}\``,
+        });
+      } catch (editError) {
+        // If edit fails, try to reply instead
+        await this.interaction.followUp({
+          content: `\`${error.message || 'Internal Server Error'}\``,
+          flags: ['Ephemeral'],
+        });
+      }
     }
   }
 
@@ -36,47 +45,37 @@ export class HandleNewslettersRequest extends DiscordRequest {
 
     if (!query) throw new Error(`Missing query`);
 
-    const fetchURL = new URL(
-      `https://api.wikisubmission.org/moc/newsletters/search`,
-    );
+    const results = await ws.Newsletters.query(query, {
+      highlight: true,
+      strategy: this.getStringInput('strict-search') === 'yes' ? 'strict' : 'default',
+    });
 
-    fetchURL.searchParams.append('q', query);
-    fetchURL.searchParams.append('highlight', 'true');
-    if (this.getStringInput('strict-search') !== 'yes') {
-      fetchURL.searchParams.append('iwo', 'true');
-    }
-
-    const req = await fetch(fetchURL);
-
-    const request: {
-      results: Database['public']['Tables']['DataNewsletters']['Row'][];
-      error: { name: string; description: string };
-    } = await req.json();
-
-    if (request?.results && !request.error) {
+    if (results.data) {
       const title = `${query} - Newsletter Search`;
-      const description = this._splitToChunks(
-        request.results
+      const pages = this._splitToChunks(
+        results.data
           .map(
             (i) =>
-              `[${i.sp_year} ${capitalize(i.sp_month)}, page ${i.sp_page
-              }](https://www.masjidtucson.org/publications/books/sp/${i.sp_year
-              }/${i.sp_month}/page${i.sp_page}.html) - ${i.sp_content}`,
+              `[${i.year} ${capitalize(i.month)}, page ${i.page
+              }](https://www.masjidtucson.org/publications/books/sp/${i.year
+              }/${i.month}/page${i.page}.html) - ${i.content}`,
           )
           .join('\n\n'),
       );
       const footer = 'Newsletters • Search 🔎';
 
-      // Multi-page? Cache interaction.
-      if (description.length > 1) {
-        const db = getSupabaseClient();
-        await db.from('GlobalCache').insert({
-          key: this.interaction.id,
-          value: JSON.stringify(serializedInteraction(this.interaction)),
+      // Multi-page? Cache paginated data.
+      if (pages.length > 1) {
+        await cachePageData(this.interaction.id, {
+          user_id: this.interaction.user.id,
+          title: title,
+          footer: footer,
+          total_pages: pages.length,
+          content: pages
         });
       }
 
-      if (this.page > description.length) {
+      if (this.page > pages.length) {
         throw new Error(`You've reached the last page`);
       }
 
@@ -84,24 +83,30 @@ export class HandleNewslettersRequest extends DiscordRequest {
         throw new Error(`You're on the first page`);
       }
 
+      // Ensure description doesn't exceed Discord's limit
+      const pageDescription = pages[this.page - 1];
+      const truncatedDescription = pageDescription.length > 4096
+        ? pageDescription.substring(0, 4093) + ''
+        : pageDescription;
+
       return {
         content: this.isSearchRequest()
-          ? `Found **${request.results.length}** newsletter instances with \`${query}\``
+          ? `Found **${results.data.length}** newsletter instances with \`${query}\``
           : undefined,
         embeds: [
           new EmbedBuilder()
             .setTitle(title)
-            .setDescription(description[this.page - 1])
+            .setDescription(truncatedDescription)
             .setFooter({
-              text: `${footer}${description.length > 1
-                  ? ` • Page ${this.page}/${description.length}`
-                  : ``
+              text: `${footer}${pages.length > 1
+                ? ` • Page ${this.page}/${pages.length}`
+                : ``
                 }`,
             })
             .setColor('DarkButNotBlack'),
         ],
         components:
-          description.length > 1
+          pages.length > 1
             ? [
               new ActionRowBuilder<any>().setComponents(
                 ...(this.page > 1
@@ -113,7 +118,7 @@ export class HandleNewslettersRequest extends DiscordRequest {
                   ]
                   : []),
 
-                ...(this.page !== description.length
+                ...(this.page !== pages.length
                   ? [
                     new ButtonBuilder()
                       .setLabel('Next page')
@@ -127,9 +132,7 @@ export class HandleNewslettersRequest extends DiscordRequest {
       };
     } else {
       throw new Error(
-        `${request?.error?.description ||
-        `No newsletter instances found with "${query}"`
-        }`,
+        `${results.error.message || `No newsletter instances found with "${query}"`}`,
       );
     }
   }

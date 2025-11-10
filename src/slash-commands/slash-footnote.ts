@@ -1,6 +1,6 @@
 import { ApplicationCommandOptionType } from 'discord.js';
 import { WSlashCommand } from '../types/w-slash-command';
-import { HandleQuranRequest } from '../utils/discord/handle-request-quran';
+import { HandleQuranRequest } from '../utils/handle-request-quran';
 
 export default function command(): WSlashCommand {
   return {
