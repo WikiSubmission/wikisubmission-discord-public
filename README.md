@@ -1,4 +1,4 @@
-# ws-discord-public
+# WikiSubmission Discord Bot
 
 Public Discord bot for WikiSubmission.
 
