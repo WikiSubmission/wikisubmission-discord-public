@@ -37,12 +37,15 @@ export class Bot {
             `Online as "${Bot.client.user?.username}". In ${Bot.client.guilds.cache.size} guilds.`,
         );
 
-        // [Slash commands]
-        await this.registerSlashCommands();
-        await this.listenForSlashCommands();
+        // [Wait for client]
+        Bot.client.once("ready", async () => {
+            // [Slash commands]
+            await this.registerSlashCommands();
+            await this.listenForSlashCommands();
 
-        // [Event listeners]
-        await this.registerEventListeners();
+            // [Event listeners]
+            await this.registerEventListeners();
+        });
     }
 
     async getCredentials(): Promise<{
