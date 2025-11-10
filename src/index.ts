@@ -20,8 +20,8 @@ import { Bot } from "./bot/client";
         process.exit(1);
     }
 
-    if (!process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
-        console.log(`No Supabase credentials found. Pagination will use local cache only.`);
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+        console.warn(`No Supabase credentials found. Pagination will use local cache only.`);
     }
 
     // [Server]
