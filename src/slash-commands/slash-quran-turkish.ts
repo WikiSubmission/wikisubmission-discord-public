@@ -1,29 +1,29 @@
-import { ApplicationCommandOptionType } from 'discord.js';
-import { WSlashCommand } from '../types/w-slash-command';
-import baseCommand from './slash-quran';
+import { ApplicationCommandOptionType } from "discord.js";
+import { WSlashCommand } from "../types/w-slash-command";
+import baseCommand from "./slash-quran";
 
 export default function command(): WSlashCommand {
   return {
     ...baseCommand(),
-    name: 'tquran',
-    description: 'Quran | Turkish 🇹🇷',
+    name: "tquran",
+    description: "Quran | Turkish 🇹🇷",
     name_localizations: {
-      tr: 'kuran',
+      tr: "kuran",
     },
     description_localizations: {
-      tr: 'Kuran | Türkçe 🇹🇷',
+      tr: "Kuran | Türkçe 🇹🇷",
     },
     options: [
       ...(baseCommand().options || []),
       {
-        name: 'with-arabic',
-        description: 'Include Arabic?',
+        name: "with-arabic",
+        description: "Include Arabic?",
         type: ApplicationCommandOptionType.String,
         name_localizations: {
-          tr: 'arapça',
+          tr: "arapça",
         },
         description_localizations: {
-          tr: 'Arapça içerir?',
+          tr: "Arapça içerir?",
         },
       },
     ],

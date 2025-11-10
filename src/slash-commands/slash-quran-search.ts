@@ -1,47 +1,47 @@
-import { ApplicationCommandOptionType } from 'discord.js';
-import { WSlashCommand } from '../types/w-slash-command';
-import baseCommand from './slash-quran';
-import { RawData } from './__raw_data';
-import { HandleQuranRequest } from '../utils/handle-request-quran';
+import { ApplicationCommandOptionType } from "discord.js";
+import { WSlashCommand } from "../types/w-slash-command";
+import baseCommand from "./slash-quran";
+import { RawData } from "./__raw_data";
+import { HandleQuranRequest } from "../utils/handle-request-quran";
 
 export default function command(): WSlashCommand {
   return {
     ...baseCommand(),
-    name: 'search-quran',
-    description: 'Quran | Search the text',
+    name: "search-quran",
+    description: "Quran | Search the text",
     options: [
       {
-        name: 'query',
+        name: "query",
         type: ApplicationCommandOptionType.String,
-        description: 'What are you looking for?',
+        description: "What are you looking for?",
         required: true,
         name_localizations: {
-          tr: 'sure',
+          tr: "sure",
         },
         description_localizations: {
-          tr: 'Sure numarasını girin',
+          tr: "Sure numarasını girin",
         },
       },
       {
-        name: 'no-footnotes',
+        name: "no-footnotes",
         type: ApplicationCommandOptionType.String,
-        description: 'Ignore subtitles & footnotes?',
+        description: "Ignore subtitles & footnotes?",
         choices: [
           {
-            name: 'yes',
-            value: 'yes',
+            name: "yes",
+            value: "yes",
           },
         ],
         name_localizations: {
-          tr: 'yorum-yok',
+          tr: "yorum-yok",
         },
         description_localizations: {
-          tr: 'Altyazı ve dipnot yok mu?',
+          tr: "Altyazı ve dipnot yok mu?",
         },
       },
       {
-        name: 'language',
-        description: 'Which language?',
+        name: "language",
+        description: "Which language?",
         type: ApplicationCommandOptionType.String,
         choices: RawData.QuranLanguages.map((i) => ({
           name: i,
@@ -49,31 +49,31 @@ export default function command(): WSlashCommand {
         })),
       },
       {
-        name: 'with-arabic',
-        description: 'Include Arabic?',
+        name: "with-arabic",
+        description: "Include Arabic?",
         type: ApplicationCommandOptionType.String,
         choices: [
           {
-            name: 'yes',
-            value: 'yes',
+            name: "yes",
+            value: "yes",
           },
         ],
         name_localizations: {
-          tr: 'arapça',
+          tr: "arapça",
         },
         description_localizations: {
-          tr: 'Arapça içerir?',
+          tr: "Arapça içerir?",
         },
       },
       {
-        name: 'strict-search',
+        name: "strict-search",
         description:
-          'Enforce the specific word order in the query to match in results',
+          "Enforce the specific word order in the query to match in results",
         type: ApplicationCommandOptionType.String,
         choices: [
           {
-            name: 'yes',
-            value: 'yes',
+            name: "yes",
+            value: "yes",
           },
         ],
       },

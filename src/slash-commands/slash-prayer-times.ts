@@ -1,60 +1,62 @@
-import { ApplicationCommandOptionType, EmbedBuilder } from 'discord.js';
-import { WSlashCommand } from '../types/w-slash-command';
+import { ApplicationCommandOptionType, EmbedBuilder } from "discord.js";
+import { WSlashCommand } from "../types/w-slash-command";
 
 export default function command(): WSlashCommand {
   return {
-    name: 'prayer-times',
-    description: 'Look up live prayer times for any part of the world',
+    name: "prayer-times",
+    description: "Look up live prayer times for any part of the world",
     name_localizations: {
-      tr: 'namazvakitleri',
+      tr: "namazvakitleri",
     },
     description_localizations: {
-      tr: 'Bir şehir için namaz vakitlerini yükleyin',
+      tr: "Bir şehir için namaz vakitlerini yükleyin",
     },
     options: [
       {
-        name: 'location',
+        name: "location",
         description:
-          'You can enter a city, landmark, address, or exact coordinates',
+          "You can enter a city, landmark, address, or exact coordinates",
         type: ApplicationCommandOptionType.String,
         required: true,
         name_localizations: {
-          tr: 'konum',
+          tr: "konum",
         },
         description_localizations: {
-          tr: 'Şehir mi yoksa yakındaki simge yapı mı?',
+          tr: "Şehir mi yoksa yakındaki simge yapı mı?",
         },
       },
       {
-        name: 'publicly-visible',
+        name: "publicly-visible",
         description:
           "Make the result viewable to others in the chat (it's hidden by default)",
         type: ApplicationCommandOptionType.String,
         choices: [
           {
-            name: 'yes',
-            value: 'yes',
+            name: "yes",
+            value: "yes",
           },
         ],
       },
       {
-        name: 'asr-adjustment',
-        description: 'Adjust asr calculation (midpoint)',
+        name: "asr-adjustment",
+        description: "Adjust asr calculation (midpoint)",
         type: ApplicationCommandOptionType.String,
         choices: [
           {
-            name: 'yes',
-            value: 'yes',
+            name: "yes",
+            value: "yes",
           },
         ],
       },
     ],
     execute: async (interaction) => {
-      const fetchURL = new URL(`https://practices.wikisubmission.org/prayer-times/${interaction.options.get('location')!.value}`);
+      const fetchURL = new URL(
+        `https://practices.wikisubmission.org/prayer-times/${interaction.options.get("location")!.value}`
+      );
 
-      fetchURL.searchParams.append('highlight', 'true');
-      if (interaction.options.get('asr-adjustment')?.value === 'yes') {
-        fetchURL.searchParams.append('asr_adjustment', 'true');
+      fetchURL.searchParams.append("highlight", "true");
+      if (interaction.options.get("asr-adjustment")?.value === "yes") {
+        fetchURL.searchParams.append("asr_adjustment", "true");
       }
 
       const req = await fetch(fetchURL);
@@ -72,34 +74,33 @@ export default function command(): WSlashCommand {
               .setDescription(request.status_string)
               .addFields(
                 {
-                  name: 'Local Time',
+                  name: "Local Time",
                   value: codify(request.local_time),
                 },
                 {
-                  name: 'Now',
+                  name: "Now",
+                  value: codify(`${capitalized(request.current_prayer)}`),
+                },
+                {
+                  name: "Up Next",
                   value: codify(
-                    `${capitalized(request.current_prayer)}`,
+                    `${capitalized(request.upcoming_prayer)} (${
+                      request.upcoming_prayer_time_left
+                    } left)`
                   ),
                 },
                 {
-                  name: 'Up Next',
+                  name: "Schedule",
                   value: codify(
-                    `${capitalized(request.upcoming_prayer)} (${request.upcoming_prayer_time_left
-                    } left)`,
+                    `Fajr: ${request.times.fajr}\nDhuhr: ${request.times.dhuhr}\nAsr: ${request.times.asr}\nMaghrib: ${request.times.maghrib}\nIsha: ${request.times.isha}\n\nSunrise: ${request.times.sunrise}`
                   ),
                 },
                 {
-                  name: 'Schedule',
+                  name: "Coordinates",
                   value: codify(
-                    `Fajr: ${request.times.fajr}\nDhuhr: ${request.times.dhuhr}\nAsr: ${request.times.asr}\nMaghrib: ${request.times.maghrib}\nIsha: ${request.times.isha}\n\nSunrise: ${request.times.sunrise}`,
+                    `${request.coordinates.latitude}, ${request.coordinates.longitude}`
                   ),
-                },
-                {
-                  name: 'Coordinates',
-                  value: codify(
-                    `${request.coordinates.latitude}, ${request.coordinates.longitude}`,
-                  ),
-                },
+                }
               )
               .setAuthor({
                 name: `Prayer Times`,
@@ -108,17 +109,17 @@ export default function command(): WSlashCommand {
               .setFooter({
                 text: request.local_timezone,
               })
-              .setColor('DarkButNotBlack'),
+              .setColor("DarkButNotBlack"),
           ],
-          flags: interaction.options.get('publicly-visible')?.value === 'yes'
-            ? undefined
-            : ['Ephemeral'],
+          flags:
+            interaction.options.get("publicly-visible")?.value === "yes"
+              ? undefined
+              : ["Ephemeral"],
         });
       } else {
         await interaction.reply({
-          content: `\`${request?.error || 'Internal Server Error'
-            }\``,
-          flags: ['Ephemeral'],
+          content: `\`${request?.error || "Internal Server Error"}\``,
+          flags: ["Ephemeral"],
         });
       }
     },
@@ -130,7 +131,7 @@ function codify(s: string) {
 }
 
 function capitalized(input?: string) {
-  if (!input) return '';
-  if (input.length === 0) return '';
+  if (!input) return "";
+  if (input.length === 0) return "";
   return input.charAt(0).toUpperCase() + input.slice(1);
 }

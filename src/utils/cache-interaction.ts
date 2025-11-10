@@ -1,5 +1,5 @@
-import NodeCache from 'node-cache';
-import { getSupabaseInternalClient } from './get-supabase-internal-client';
+import NodeCache from "node-cache";
+import { getSupabaseInternalClient } from "./get-supabase-internal-client";
 
 // Local in-memory cache as fallback when DB is not available
 const localCache = new NodeCache({ stdTTL: 3600 }); // 1 hour TTL
@@ -17,12 +17,12 @@ interface CachedPageData {
  */
 export async function cachePageData(
   interactionId: string,
-  data: CachedPageData,
+  data: CachedPageData
 ): Promise<void> {
   try {
     const db = getSupabaseInternalClient();
     if (db) {
-      await db.from('ws_discord_cache').upsert({
+      await db.from("ws_discord_cache").upsert({
         key: interactionId,
         value: JSON.stringify(data),
       });
@@ -31,7 +31,7 @@ export async function cachePageData(
   } catch (error) {
     // DB error, fall through to local cache
   }
-  
+
   // DB unavailable or null, use local cache
   localCache.set(interactionId, data);
 }
@@ -40,15 +40,15 @@ export async function cachePageData(
  * Retrieve cached pagination data - tries DB first, falls back to local cache
  */
 export async function getCachedPageData(
-  interactionId: string,
+  interactionId: string
 ): Promise<CachedPageData | null> {
   try {
     const db = getSupabaseInternalClient();
     if (db) {
       const request = await db
-        .from('ws_discord_cache')
-        .select('*')
-        .eq('key', interactionId)
+        .from("ws_discord_cache")
+        .select("*")
+        .eq("key", interactionId)
         .single();
 
       if (request.data?.value) {
@@ -67,4 +67,3 @@ export async function getCachedPageData(
 
   return null;
 }
-

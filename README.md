@@ -25,8 +25,8 @@ For WikiSubmission, use the following variables:
 
 Certain commands produce paginated data. We store in those interactions in Supabase to allow pagination. Provide the following:
 
-- `SUPABASE_URL` *(supabase URL)
-- `SUPABASE_ANON_KEY` *(supabase anon API key)
+- `SUPABASE_URL` \*(supabase URL)
+- `SUPABASE_ANON_KEY` \*(supabase anon API key)
 
 This is the expected configuration in Supabase. Run this query to prepare a new project:
 

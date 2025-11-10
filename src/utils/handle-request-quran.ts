@@ -1,9 +1,9 @@
-import { EmbedBuilder, ActionRowBuilder, ButtonBuilder } from 'discord.js';
-import { WDiscordCommandResult } from '../types/w-discord-command-result';
-import { DiscordRequest } from './handle-request';
-import { cachePageData } from './cache-interaction';
-import { logError } from './log-error';
-import { ws } from './wikisubmission-sdk';
+import { EmbedBuilder, ActionRowBuilder, ButtonBuilder } from "discord.js";
+import { WDiscordCommandResult } from "../types/w-discord-command-result";
+import { DiscordRequest } from "./handle-request";
+import { cachePageData } from "./cache-interaction";
+import { logError } from "./log-error";
+import { ws } from "./wikisubmission-sdk";
 
 export class HandleQuranRequest extends DiscordRequest {
   constructor(
@@ -11,7 +11,7 @@ export class HandleQuranRequest extends DiscordRequest {
     public page: number = 1,
     public options?: {
       footnoteOnly?: boolean;
-    },
+    }
   ) {
     super(interaction);
   }
@@ -31,65 +31,71 @@ export class HandleQuranRequest extends DiscordRequest {
       logError(error, `(/${this.interaction.commandName})`);
       try {
         await this.interaction.editReply({
-          content: `\`${error.message || 'Internal Server Error'}\``,
+          content: `\`${error.message || "Internal Server Error"}\``,
         });
       } catch (editError) {
         // If edit fails, try to reply instead
         await this.interaction.followUp({
-        content: `\`${error.message || 'Internal Server Error'}\``,
-        flags: ['Ephemeral'],
-      });
+          content: `\`${error.message || "Internal Server Error"}\``,
+          flags: ["Ephemeral"],
+        });
       }
     }
   }
 
   async getResults(): Promise<WDiscordCommandResult> {
     const query =
-      this.interaction.commandName === 'chapter'
-        ? this.getStringInput('chapter') // "/chapter"
-        : this.interaction.commandName.startsWith('search')
-          ? this.getStringInput('query') // "/search-quran"
-          : this.getStringInput('verse'); // "/quran, /equran, etc"
+      this.interaction.commandName === "chapter"
+        ? this.getStringInput("chapter") // "/chapter"
+        : this.interaction.commandName.startsWith("search")
+          ? this.getStringInput("query") // "/search-quran"
+          : this.getStringInput("verse"); // "/quran, /equran, etc"
 
     if (!query) throw new Error(`Missing query`);
 
     const language = ws.Quran.Methods.parseLanguage(this.targetLanguage());
-    const includeCommentary = this.getStringInput('no-commentary') !== 'yes';
+    const includeCommentary = this.getStringInput("no-commentary") !== "yes";
 
     var title = "";
     var verses: string[] = [];
     var footer = "";
 
-    const results = await ws.Quran.query(query, { 
+    const results = await ws.Quran.query(query, {
       highlight: true,
       language: language,
-      strategy: this.getStringInput('strict-search') === 'yes' ? 'strict' : 'default',
+      strategy:
+        this.getStringInput("strict-search") === "yes" ? "strict" : "default",
       adjustments: {
         index: true,
         chapters: true,
         text: true,
-        footnotes: this.getStringInput('no-commentary') !== 'yes',
-        subtitles: this.getStringInput('no-commentary') !== 'yes',
+        footnotes: this.getStringInput("no-commentary") !== "yes",
+        subtitles: this.getStringInput("no-commentary") !== "yes",
         wordByWord: false,
-      }
+      },
     });
 
-    if (results.status === 'success') {
+    if (results.status === "success") {
       // [Use result metadata for title + footer]
       title = results.metadata.formattedChapterTitle;
       footer = results.metadata.formattedBookTitle;
 
       // [Build description baesd on result.type]
       switch (results.type) {
-        case 'verse':
-        case 'multiple_verses':
-        case 'chapter': {
+        case "verse":
+        case "multiple_verses":
+        case "chapter": {
           for (const result of results.data) {
             let verseContent = "";
 
             // [Subtitles]
             if (result.ws_quran_subtitles && includeCommentary) {
-              const subtitleText = result.ws_quran_subtitles[language in result.ws_quran_subtitles ? language as keyof typeof result.ws_quran_subtitles : 'english'];
+              const subtitleText =
+                result.ws_quran_subtitles[
+                  language in result.ws_quran_subtitles
+                    ? (language as keyof typeof result.ws_quran_subtitles)
+                    : "english"
+                ];
               verseContent += `\`${String(subtitleText)}\`\n\n`;
             }
 
@@ -97,14 +103,22 @@ export class HandleQuranRequest extends DiscordRequest {
             verseContent += `**[${result.verse_id}]** ${result.ws_quran_text[language]}\n\n`;
 
             // [Arabic]
-            if (this.interaction.commandName === "equran" || this.interaction.commandName === "aquran") {
+            if (
+              this.interaction.commandName === "equran" ||
+              this.interaction.commandName === "aquran"
+            ) {
               const arabicText = result.ws_quran_text.arabic;
               verseContent += `**[${result.verse_id_arabic}]** ${arabicText}\n\n`;
             }
 
             // [Footnotes]
             if (result.ws_quran_footnotes && includeCommentary) {
-              const footnoteText = result.ws_quran_footnotes[language in result.ws_quran_footnotes ? language as keyof typeof result.ws_quran_footnotes : 'english'];
+              const footnoteText =
+                result.ws_quran_footnotes[
+                  language in result.ws_quran_footnotes
+                    ? (language as keyof typeof result.ws_quran_footnotes)
+                    : "english"
+                ];
               verseContent += `*${String(footnoteText)}*\n\n`;
             }
 
@@ -113,24 +127,34 @@ export class HandleQuranRequest extends DiscordRequest {
           break;
         }
 
-        case 'search': {
+        case "search": {
           for (const result of results.data) {
             let verseContent = "";
             switch (result.hit) {
-              case 'text':
+              case "text":
                 const textContent = result[language];
                 verseContent = `**[${result.verse_id}]** ${textContent}`;
                 break;
-              case 'chapter':
+              case "chapter":
                 const chapterTitle = result[`title_${language}`];
                 verseContent = `Sura ${result.chapter_number}, ${chapterTitle}`;
                 break;
-              case 'subtitle':
-                const subtitleContent = result[language in result ? language as keyof typeof result : 'english'];
+              case "subtitle":
+                const subtitleContent =
+                  result[
+                    language in result
+                      ? (language as keyof typeof result)
+                      : "english"
+                  ];
                 verseContent = `**[${result.verse_id}]** ${String(subtitleContent)}`;
                 break;
-              case 'footnote':
-                const footnoteContent = result[language in result ? language as keyof typeof result : 'english'];
+              case "footnote":
+                const footnoteContent =
+                  result[
+                    language in result
+                      ? (language as keyof typeof result)
+                      : "english"
+                  ];
                 verseContent = `*${String(footnoteContent)}*`;
                 break;
             }
@@ -150,7 +174,7 @@ export class HandleQuranRequest extends DiscordRequest {
           title: title,
           footer: footer,
           total_pages: pages.length,
-          content: pages
+          content: pages,
         });
       }
 
@@ -165,48 +189,47 @@ export class HandleQuranRequest extends DiscordRequest {
 
       // Ensure description doesn't exceed Discord's limit
       const pageDescription = pages[this.page - 1];
-      const truncatedDescription = pageDescription.length > 4096
-        ? pageDescription.substring(0, 4093) + ''
-        : pageDescription;
+      const truncatedDescription =
+        pageDescription.length > 4096
+          ? pageDescription.substring(0, 4093) + ""
+          : pageDescription;
 
       return {
-        content:
-          this.isSearchRequest()
-            ? `Found **${results.totalMatches}** verses with \`${query}\``
+        content: this.isSearchRequest()
+          ? `Found **${results.totalMatches}** verses with \`${query}\``
           : undefined,
-        embeds:
-          [
+        embeds: [
           new EmbedBuilder()
             .setTitle(title.substring(0, 256))
-              .setDescription(truncatedDescription)
+            .setDescription(truncatedDescription)
             .setFooter({
               text: `${footer}${pages.length > 1 ? ` • Page ${this.page}/${pages.length}` : ``}`,
             })
-            .setColor('DarkButNotBlack'),
+            .setColor("DarkButNotBlack"),
         ],
         components:
           pages.length > 1
             ? [
-              new ActionRowBuilder<any>().setComponents(
-                ...(this.page > 1
-                  ? [
-                    new ButtonBuilder()
-                      .setLabel('Previous page')
-                      .setCustomId(`page_${this.page - 1}`)
-                      .setStyle(2),
-                  ]
-                  : []),
+                new ActionRowBuilder<any>().setComponents(
+                  ...(this.page > 1
+                    ? [
+                        new ButtonBuilder()
+                          .setLabel("Previous page")
+                          .setCustomId(`page_${this.page - 1}`)
+                          .setStyle(2),
+                      ]
+                    : []),
 
-                ...(this.page !== pages.length
-                  ? [
-                    new ButtonBuilder()
-                      .setLabel('Next page')
-                      .setCustomId(`page_${this.page + 1}`)
-                      .setStyle(1),
-                  ]
-                  : []),
-              ),
-            ]
+                  ...(this.page !== pages.length
+                    ? [
+                        new ButtonBuilder()
+                          .setLabel("Next page")
+                          .setCustomId(`page_${this.page + 1}`)
+                          .setStyle(1),
+                      ]
+                    : [])
+                ),
+              ]
             : [],
       };
     } else {
@@ -216,20 +239,24 @@ export class HandleQuranRequest extends DiscordRequest {
 
   // Helper methods.
 
-  private splitVersesToPages(verses: string[], maxChunkLength: number = 4000): string[] {
+  private splitVersesToPages(
+    verses: string[],
+    maxChunkLength: number = 4000
+  ): string[] {
     const pages: string[] = [];
-    let currentPage = '';
+    let currentPage = "";
 
     for (let i = 0; i < verses.length; i++) {
       const verse = verses[i];
-      const verseWithSeparator = currentPage.length > 0 ? '\n\n' + verse : verse;
+      const verseWithSeparator =
+        currentPage.length > 0 ? "\n\n" + verse : verse;
       const currentPageLength = currentPage.length + verseWithSeparator.length;
 
       if (currentPageLength > maxChunkLength) {
         if (currentPage.length > 0) {
           pages.push(currentPage.trim());
           currentPage = verse;
-    } else {
+        } else {
           // If a single verse is too long, we have to include it anyway
           pages.push(verse);
         }
@@ -244,5 +271,4 @@ export class HandleQuranRequest extends DiscordRequest {
 
     return pages;
   }
-
 }

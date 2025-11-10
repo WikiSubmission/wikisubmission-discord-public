@@ -1,241 +1,244 @@
-import { Awaitable, Client, ClientEvents, GatewayIntentBits, REST, Routes } from 'discord.js'
+import {
+  Awaitable,
+  Client,
+  ClientEvents,
+  GatewayIntentBits,
+  REST,
+  Routes,
+} from "discord.js";
 import { getEnv } from "../utils/get-env";
 import { getFileExports } from "../utils/get-file-exports";
-import { WSlashCommand } from '../types/w-slash-command';
-import { getCliParams } from '../utils/get-cli-params';
-import { logError } from '../utils/log-error';
-import { parseInteraction } from '../utils/parse-interaction';
-import { authenticateMember } from '../utils/authenticate-member';
-import { WEventListener } from '../types/w-event-listener';
+import { WSlashCommand } from "../types/w-slash-command";
+import { getCliParams } from "../utils/get-cli-params";
+import { logError } from "../utils/log-error";
+import { parseInteraction } from "../utils/parse-interaction";
+import { authenticateMember } from "../utils/authenticate-member";
+import { WEventListener } from "../types/w-event-listener";
 
 export class Bot {
+  static instance = new Bot();
 
-    static instance = new Bot();
+  public static client = new Client({
+    intents: [
+      // [Non-privileged intents]
+      GatewayIntentBits.Guilds,
+    ],
+    // [Define presence]
+    presence: {
+      status: "online",
+      activities: [
+        {
+          name: "Righteousness",
+          type: 5,
+        },
+      ],
+    },
+  });
 
-    public static client = new Client({
-        intents: [
-            // [Non-privileged intents]
-            GatewayIntentBits.Guilds,
-        ],
-        // [Define presence]
-        presence: {
-            status: 'online',
-            activities: [
-                {
-                    name: 'Righteousness',
-                    type: 5,
-                },
-            ]
-        }
-    })
+  async start() {
+    // [Login]
+    const { token } = await this.getCredentials();
+    await Bot.client.login(token);
+    console.log(
+      `Online as "${Bot.client.user?.username}". In ${Bot.client.guilds.cache.size} guilds.`
+    );
 
-    async start() {
-        // [Login]
-        const { token } = await this.getCredentials();
-        await Bot.client.login(token);
-        console.log(
-            `Online as "${Bot.client.user?.username}". In ${Bot.client.guilds.cache.size} guilds.`,
-        );
+    // [Wait for client]
+    Bot.client.once("ready", async () => {
+      // [Slash commands]
+      await this.registerSlashCommands();
+      await this.listenForSlashCommands();
 
-        // [Wait for client]
-        Bot.client.once("ready", async () => {
-            // [Slash commands]
-            await this.registerSlashCommands();
-            await this.listenForSlashCommands();
+      // [Event listeners]
+      await this.registerEventListeners();
+    });
+  }
 
-            // [Event listeners]
-            await this.registerEventListeners();
-        });
+  async getCredentials(): Promise<{
+    token: string;
+    clientId: string;
+  }> {
+    // [Default to a specific bot if specified]
+    if (process.env.BOT_TOKEN && process.env.BOT_CLIENT_ID) {
+      return {
+        token: process.env.BOT_TOKEN,
+        clientId: process.env.BOT_CLIENT_ID,
+      };
     }
 
-    async getCredentials(): Promise<{
-        token: string;
-        clientId: string;
-    }> {
-        // [Default to a specific bot if specified]
-        if (process.env.BOT_TOKEN && process.env.BOT_CLIENT_ID) {
-            return {
-                token: process.env.BOT_TOKEN,
-                clientId: process.env.BOT_CLIENT_ID
-            }
-        }
+    // [Otherwise, conditional prod/dev bot based on NODE_ENV]
+    return {
+      token: getEnv(
+        process.env.NODE_ENV === "production"
+          ? "DISCORD_TOKEN_WIKISUBMISSION"
+          : "DISCORD_TOKEN_WIKISUBMISSION_DEVELOPMENT"
+      ),
+      clientId: getEnv(
+        process.env.NODE_ENV === "production"
+          ? "DISCORD_CLIENTID_WIKISUBMISSION"
+          : "DISCORD_CLIENTID_WIKISUBMISSION_DEVELOPMENT"
+      ),
+    };
+  }
 
-        // [Otherwise, conditional prod/dev bot based on NODE_ENV]
-        return {
-            token: getEnv(
-                process.env.NODE_ENV === 'production'
-                    ? 'DISCORD_TOKEN_WIKISUBMISSION'
-                    : 'DISCORD_TOKEN_WIKISUBMISSION_DEVELOPMENT',
-            ),
-            clientId: getEnv(
-                process.env.NODE_ENV === 'production'
-                    ? 'DISCORD_CLIENTID_WIKISUBMISSION'
-                    : 'DISCORD_CLIENTID_WIKISUBMISSION_DEVELOPMENT',
-            ),
-        }
-    }
-
-    async addEventListener<Event extends keyof ClientEvents>(
-        event: Event,
-        listener: (...args: ClientEvents[Event]) => Awaitable<void>,
-        once?: boolean,
-    ) {
-        Bot.client[once ? 'once' : 'on'](
-            event,
-            async (...args: ClientEvents[Event]) => {
-                try {
-                    await listener(...args);
-                } catch (error) {
-                    logError(error, `${event}`);
-                }
-            },
-        );
-    }
-
-    async registerSlashCommands() {
-        // [Get slash command data from files]
-        const slashCommands = await getFileExports<WSlashCommand>(
-            '/slash-commands', {
-            ignoreIfNotFound: true
-        }
-        );
-
-        if (!slashCommands || slashCommands.length === 0) {
-            console.log(`No slash commands found`);
-            return;
-        }
-
-        // [Get CLI params to consider manually skipping registration]
-        const cliParams = getCliParams();
-        if (cliParams.includes('ncs') || cliParams.includes('no-command-sync')) {
-            console.warn(`Skipping command sync (as requested)`);
-            return;
-        }
-
-        // [Get credemtials]
-        const { token, clientId } = await this.getCredentials();
-
-        // [Get rest instance]
-        const rest = new REST().setToken(token);
-
-        // [Attempt to register slash commands]
+  async addEventListener<Event extends keyof ClientEvents>(
+    event: Event,
+    listener: (...args: ClientEvents[Event]) => Awaitable<void>,
+    once?: boolean
+  ) {
+    Bot.client[once ? "once" : "on"](
+      event,
+      async (...args: ClientEvents[Event]) => {
         try {
-            await rest.put(
-                Routes.applicationCommands(
-                    clientId,
-                ),
-                {
-                    body: slashCommands
-                }
-            )
-            console.log(
-                `Commands Synced: ${slashCommands
-                    .map((c) => `/${c.name}`)
-                    .join(', ')}`
-            )
+          await listener(...args);
         } catch (error) {
-            logError(error, 'registerSlashCommands')
+          logError(error, `${event}`);
         }
+      }
+    );
+  }
+
+  async registerSlashCommands() {
+    // [Get slash command data from files]
+    const slashCommands = await getFileExports<WSlashCommand>(
+      "/slash-commands",
+      {
+        ignoreIfNotFound: true,
+      }
+    );
+
+    if (!slashCommands || slashCommands.length === 0) {
+      console.log(`No slash commands found`);
+      return;
     }
 
-    async registerEventListeners() {
-        // [Get event listener data from files]
-        const eventListeners = await getFileExports<WEventListener>(
-            '/event-listeners', {
-            ignoreIfNotFound: true
-        }
-        );
-
-        if (!eventListeners || eventListeners.length === 0) {
-            console.log(`No event handlers found`);
-            return;
-        }
-
-        // [Add event listeners]
-        for (const eventListener of eventListeners) {
-            this.addEventListener(
-                eventListener.name,
-                async (...args) => {
-                    try {
-                        // @ts-ignore
-                        await eventListener.handler(...args);
-                    } catch (error) {
-                        logError(error, eventListener.name);
-                    }
-                },
-                eventListener.once ? true : false,
-            );
-        }
-
-        console.log(
-            `Listening for events: ${eventListeners
-                .map((e) => e.name)
-                .join(', ')}`,
-        );
+    // [Get CLI params to consider manually skipping registration]
+    const cliParams = getCliParams();
+    if (cliParams.includes("ncs") || cliParams.includes("no-command-sync")) {
+      console.warn(`Skipping command sync (as requested)`);
+      return;
     }
 
-    async listenForSlashCommands() {
-        const slashCommands = await getFileExports<WSlashCommand>(
-            '/slash-commands', {
-            ignoreIfNotFound: true
-        });
+    // [Get credemtials]
+    const { token, clientId } = await this.getCredentials();
 
-        // [Add event listener to listen for slash commands]
-        this.addEventListener('interactionCreate', async (interaction) => {
-            if (interaction.isCommand()) {
-                // [Get start timestamp]
-                const startTime = Date.now();
+    // [Get rest instance]
+    const rest = new REST().setToken(token);
 
-                // [Debug log]
-                console.log(parseInteraction(interaction));
+    // [Attempt to register slash commands]
+    try {
+      await rest.put(Routes.applicationCommands(clientId), {
+        body: slashCommands,
+      });
+      console.log(
+        `Commands Synced: ${slashCommands.map((c) => `/${c.name}`).join(", ")}`
+      );
+    } catch (error) {
+      logError(error, "registerSlashCommands");
+    }
+  }
 
-                // [Loop over each known command]
-                for (const slashCommand of slashCommands) {
+  async registerEventListeners() {
+    // [Get event listener data from files]
+    const eventListeners = await getFileExports<WEventListener>(
+      "/event-listeners",
+      {
+        ignoreIfNotFound: true,
+      }
+    );
 
-                    // [Find the matching command requested]
-                    if (interaction.commandName === slashCommand.name) {
-                        try {
-                            // [Early return: DM use disabled]
-                            if (slashCommand.disabled_in_dm && !interaction.guild) {
-                                await interaction.reply({
-                                    content:
-                                        '`This command has been disabled in DMs. Please try in a server.`',
-                                    flags: ['Ephemeral'],
-                                });
-                                return;
-                            }
+    if (!eventListeners || eventListeners.length === 0) {
+      console.log(`No event handlers found`);
+      return;
+    }
 
-                            // [Early return: unauthorized]
-                            if (
-                                slashCommand.access_control &&
-                                !authenticateMember(
-                                    interaction.member,
-                                    slashCommand.access_control,
-                                )
-                            ) {
-                                await interaction.reply({
-                                    content: '`Unauthorized`',
-                                    flags: ['Ephemeral'],
-                                });
-                                return;
-                            }
+    // [Add event listeners]
+    for (const eventListener of eventListeners) {
+      this.addEventListener(
+        eventListener.name,
+        async (...args) => {
+          try {
+            // @ts-ignore
+            await eventListener.handler(...args);
+          } catch (error) {
+            logError(error, eventListener.name);
+          }
+        },
+        eventListener.once ? true : false
+      );
+    }
 
-                            // [Run handler]
-                            await slashCommand.execute(interaction);
+    console.log(
+      `Listening for events: ${eventListeners.map((e) => e.name).join(", ")}`
+    );
+  }
 
-                            // [Record ping]
-                            const endTime = Date.now();
-                            console.log(
-                                `[${interaction.id}] completed in ${(
-                                    endTime - startTime
-                                ).toFixed(0)}ms`,
-                            );
-                        } catch (error) {
-                            logError(error, `interactionCreate (/${interaction.commandName})`);
-                        }
-                    }
-                }
+  async listenForSlashCommands() {
+    const slashCommands = await getFileExports<WSlashCommand>(
+      "/slash-commands",
+      {
+        ignoreIfNotFound: true,
+      }
+    );
+
+    // [Add event listener to listen for slash commands]
+    this.addEventListener("interactionCreate", async (interaction) => {
+      if (interaction.isCommand()) {
+        // [Get start timestamp]
+        const startTime = Date.now();
+
+        // [Debug log]
+        console.log(parseInteraction(interaction));
+
+        // [Loop over each known command]
+        for (const slashCommand of slashCommands) {
+          // [Find the matching command requested]
+          if (interaction.commandName === slashCommand.name) {
+            try {
+              // [Early return: DM use disabled]
+              if (slashCommand.disabled_in_dm && !interaction.guild) {
+                await interaction.reply({
+                  content:
+                    "`This command has been disabled in DMs. Please try in a server.`",
+                  flags: ["Ephemeral"],
+                });
+                return;
+              }
+
+              // [Early return: unauthorized]
+              if (
+                slashCommand.access_control &&
+                !authenticateMember(
+                  interaction.member,
+                  slashCommand.access_control
+                )
+              ) {
+                await interaction.reply({
+                  content: "`Unauthorized`",
+                  flags: ["Ephemeral"],
+                });
+                return;
+              }
+
+              // [Run handler]
+              await slashCommand.execute(interaction);
+
+              // [Record ping]
+              const endTime = Date.now();
+              console.log(
+                `[${interaction.id}] completed in ${(
+                  endTime - startTime
+                ).toFixed(0)}ms`
+              );
+            } catch (error) {
+              logError(
+                error,
+                `interactionCreate (/${interaction.commandName})`
+              );
             }
-        });
-    }
+          }
+        }
+      }
+    });
+  }
 }

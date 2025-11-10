@@ -1,4 +1,4 @@
-import { EmbedBuilder, ActionRowBuilder } from 'discord.js';
+import { EmbedBuilder, ActionRowBuilder } from "discord.js";
 
 export interface WDiscordCommandResult {
   embeds: EmbedBuilder[];
