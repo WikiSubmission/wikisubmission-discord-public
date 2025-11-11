@@ -33,12 +33,20 @@ export class HandleQuranRequest extends DiscordRequest {
         await this.interaction.editReply({
           content: `\`${error.message || "Internal Server Error"}\``,
         });
+        // Delete error message after 3 seconds
+        setTimeout(() => {
+          this.interaction.deleteReply().catch(() => {});
+        }, 3000);
       } catch (editError) {
         // If edit fails, try to reply instead
-        await this.interaction.followUp({
+        const followUpMessage = await this.interaction.followUp({
           content: `\`${error.message || "Internal Server Error"}\``,
-          flags: ["Ephemeral"],
+          ephemeral: true,
         });
+        // Delete error message after 3 seconds
+        setTimeout(() => {
+          followUpMessage.delete().catch(() => {});
+        }, 3000);
       }
     }
   }
@@ -233,7 +241,7 @@ export class HandleQuranRequest extends DiscordRequest {
             : [],
       };
     } else {
-      throw new Error(results.error);
+      throw new Error(`No verse(s) found with '${query}'`);
     }
   }
 

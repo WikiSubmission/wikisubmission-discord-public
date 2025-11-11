@@ -30,12 +30,20 @@ export class HandleNewslettersRequest extends DiscordRequest {
         await this.interaction.editReply({
           content: `\`${error.message || "Internal Server Error"}\``,
         });
+        // Delete error message after 3 seconds
+        setTimeout(() => {
+          this.interaction.deleteReply().catch(() => {});
+        }, 3000);
       } catch (editError) {
         // If edit fails, try to reply instead
-        await this.interaction.followUp({
+        const followUpMessage = await this.interaction.followUp({
           content: `\`${error.message || "Internal Server Error"}\``,
-          flags: ["Ephemeral"],
+          ephemeral: true,
         });
+        // Delete error message after 3 seconds
+        setTimeout(() => {
+          followUpMessage.delete().catch(() => {});
+        }, 3000);
       }
     }
   }
@@ -52,6 +60,10 @@ export class HandleNewslettersRequest extends DiscordRequest {
     });
 
     if (results.data) {
+      if (results.data.length === 0) {
+        throw new Error(`No newsletter instances found with '${query}'`);
+      }
+
       const title = `${query} - Newsletter Search`;
       const pages = this._splitToChunks(
         results.data

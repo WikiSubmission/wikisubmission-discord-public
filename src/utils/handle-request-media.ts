@@ -30,12 +30,20 @@ export class HandleMediaRequest extends DiscordRequest {
         await this.interaction.editReply({
           content: `\`${error.message || "Internal Server Error"}\``,
         });
+        // Delete error message after 3 seconds
+        setTimeout(() => {
+          this.interaction.deleteReply().catch(() => {});
+        }, 3000);
       } catch (editError) {
         // If edit fails, try to reply instead
-        await this.interaction.followUp({
+        const followUpMessage = await this.interaction.followUp({
           content: `\`${error.message || "Internal Server Error"}\``,
-          flags: ["Ephemeral"],
+          ephemeral: true,
         });
+        // Delete error message after 3 seconds
+        setTimeout(() => {
+          followUpMessage.delete().catch(() => {});
+        }, 3000);
       }
     }
   }
@@ -55,6 +63,10 @@ export class HandleMediaRequest extends DiscordRequest {
     });
 
     if (results.data) {
+      if (results.data.length === 0) {
+        throw new Error(`No media instances found with '${query}'`);
+      }
+
       const title = `${query} - Media Search`;
       const pages = this._splitToChunks(
         results.data
@@ -99,7 +111,7 @@ export class HandleMediaRequest extends DiscordRequest {
           : undefined,
         embeds: [
           new EmbedBuilder()
-            .setTitle(title)
+            .setTitle(title.slice(0, 256))
             .setDescription(truncatedDescription)
             .setFooter({
               text: `${footer}${
