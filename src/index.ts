@@ -29,10 +29,10 @@ import { Bot } from "./bot/client";
 
   if (
     !process.env.SUPABASE_URL ||
-    (!process.env.SUPABASE_SERVICE_ROLE_KEY && !process.env.SUPABASE_ANON_KEY)
+    (!process.env.SUPABASE_SERVICE_ROLE_KEY)
   ) {
     console.warn(
-      `No Supabase credentials found. Pagination will use local cache only.`
+      `No Supabase credentials found (SUPABASE_URL & SUPABASE_SERVICE_ROLE_KEY). Pagination will use local cache only.`
     );
   }
 
