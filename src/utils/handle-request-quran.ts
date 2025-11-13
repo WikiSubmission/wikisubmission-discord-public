@@ -112,8 +112,7 @@ export class HandleQuranRequest extends DiscordRequest {
 
             // [Arabic]
             if (
-              this.interaction.commandName === "equran" ||
-              this.interaction.commandName === "aquran"
+              this.interaction.commandName === "equran"
             ) {
               const arabicText = result.ws_quran_text.arabic;
               verseContent += `**[${result.verse_id_arabic}]** ${arabicText}\n\n`;
