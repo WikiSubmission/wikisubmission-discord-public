@@ -144,7 +144,7 @@ export class HandleQuranRequest extends DiscordRequest {
                 break;
               case "chapter":
                 const chapterTitle = result[`title_${language}`];
-                verseContent = `Sura ${result.chapter_number}, ${chapterTitle}`;
+                verseContent = `**Chapter:** Sura ${result.chapter_number}, ${chapterTitle}`;
                 break;
               case "subtitle":
                 const subtitleContent =
@@ -153,7 +153,7 @@ export class HandleQuranRequest extends DiscordRequest {
                       ? (language as keyof typeof result)
                       : "english"
                   ];
-                verseContent = `**[${result.verse_id}]** ${String(subtitleContent)}`;
+                verseContent = `**[${result.verse_id}]** Subtitle: ${String(subtitleContent)}`;
                 break;
               case "footnote":
                 const footnoteContent =
@@ -162,7 +162,7 @@ export class HandleQuranRequest extends DiscordRequest {
                       ? (language as keyof typeof result)
                       : "english"
                   ];
-                verseContent = `*${String(footnoteContent)}*`;
+                verseContent = `**[${result.verse_id}]** Footnote: *${String(footnoteContent)}*`;
                 break;
             }
             verses.push(verseContent);
