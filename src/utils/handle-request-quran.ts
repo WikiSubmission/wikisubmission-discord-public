@@ -97,7 +97,11 @@ export class HandleQuranRequest extends DiscordRequest {
             let verseContent = "";
 
             // [Subtitles]
-            if (result.ws_quran_subtitles && includeCommentary) {
+            if (
+              result.ws_quran_subtitles &&
+              includeCommentary &&
+              !this.options?.footnoteOnly
+            ) {
               const subtitleText =
                 result.ws_quran_subtitles[
                   language in result.ws_quran_subtitles
@@ -112,14 +116,19 @@ export class HandleQuranRequest extends DiscordRequest {
 
             // [Arabic]
             if (
-              this.interaction.commandName === "equran"
+              this.interaction.commandName === "equran" &&
+              !this.options?.footnoteOnly
             ) {
               const arabicText = result.ws_quran_text.arabic;
               verseContent += `**[${result.verse_id_arabic}]** ${arabicText}\n\n`;
             }
 
             // [Footnotes]
-            if (result.ws_quran_footnotes && includeCommentary) {
+            if (
+              result.ws_quran_footnotes &&
+              includeCommentary &&
+              this.options?.footnoteOnly
+            ) {
               const footnoteText =
                 result.ws_quran_footnotes[
                   language in result.ws_quran_footnotes
