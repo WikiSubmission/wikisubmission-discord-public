@@ -112,7 +112,9 @@ export class HandleQuranRequest extends DiscordRequest {
             }
 
             // [Text]
-            verseContent += `**[${result.verse_id}]** ${result.ws_quran_text[language]}\n\n`;
+            if (!this.options?.footnoteOnly) {
+              verseContent += `**[${result.verse_id}]** ${result.ws_quran_text[language]}\n\n`;
+            }
 
             // [Arabic]
             if (
@@ -126,8 +128,7 @@ export class HandleQuranRequest extends DiscordRequest {
             // [Footnotes]
             if (
               result.ws_quran_footnotes &&
-              includeCommentary &&
-              this.options?.footnoteOnly
+              (includeCommentary || this.options?.footnoteOnly)
             ) {
               const footnoteText =
                 result.ws_quran_footnotes[
