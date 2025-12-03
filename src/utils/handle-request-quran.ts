@@ -93,7 +93,7 @@ export class HandleQuranRequest extends DiscordRequest {
         case "verse":
         case "multiple_verses":
         case "chapter": {
-          for (const result of results.data) {
+          for (const result of results.data.slice(0, 350)) {
             let verseContent = "";
 
             // [Subtitles]
@@ -145,7 +145,7 @@ export class HandleQuranRequest extends DiscordRequest {
         }
 
         case "search": {
-          for (const result of results.data) {
+          for (const result of results.data.slice(0, 350)) {
             let verseContent = "";
             switch (result.hit) {
               case "text":
@@ -213,7 +213,7 @@ export class HandleQuranRequest extends DiscordRequest {
 
       return {
         content: this.isSearchRequest()
-          ? `Found **${results.totalMatches}** verses with \`${query}\``
+          ? `Found **${results.totalMatches > 348 ? "350+" : results.totalMatches}** verse${results.totalMatches > 1 ? "s" : ""} with \`${query}\``
           : undefined,
         embeds: [
           new EmbedBuilder()
