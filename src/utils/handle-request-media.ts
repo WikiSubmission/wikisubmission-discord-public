@@ -67,9 +67,13 @@ export class HandleMediaRequest extends DiscordRequest {
         throw new Error(`No media instances found with '${query}'`);
       }
 
+      // Apply 350 hard limit
+      const limitedData = results.data.slice(0, 350);
+      const originalCount = results.data.length;
+
       const title = `${query} - Media Search`;
       const pages = this._splitToChunks(
-        results.data
+        limitedData
           .map(
             (i) =>
               `[${i.title} @ ${i.start_timestamp}](https://youtu.be/${i.youtube_id}?t=${i.youtube_timestamp}) - ${i.transcript}`
@@ -107,7 +111,7 @@ export class HandleMediaRequest extends DiscordRequest {
 
       return {
         content: this.isSearchRequest()
-          ? `Found **${results.data.length}** media instances with \`${query}\``
+          ? `Found **${originalCount > 348 ? "350+" : originalCount}** media instance${originalCount > 1 ? "s" : ""} with \`${query}\``
           : undefined,
         embeds: [
           new EmbedBuilder()

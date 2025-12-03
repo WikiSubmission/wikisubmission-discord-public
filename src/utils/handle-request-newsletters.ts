@@ -64,9 +64,13 @@ export class HandleNewslettersRequest extends DiscordRequest {
         throw new Error(`No newsletter instances found with '${query}'`);
       }
 
+      // Apply 350 hard limit
+      const limitedData = results.data.slice(0, 350);
+      const originalCount = results.data.length;
+
       const title = `${query} - Newsletter Search`;
       const pages = this._splitToChunks(
-        results.data
+        limitedData
           .map(
             (i) =>
               `[${i.year} ${capitalize(i.month)}, page ${
@@ -107,7 +111,7 @@ export class HandleNewslettersRequest extends DiscordRequest {
 
       return {
         content: this.isSearchRequest()
-          ? `Found **${results.data.length}** newsletter instances with \`${query}\``
+          ? `Found **${originalCount > 348 ? "350+" : originalCount}** newsletter instance${originalCount > 1 ? "s" : ""} with \`${query}\``
           : undefined,
         embeds: [
           new EmbedBuilder()
