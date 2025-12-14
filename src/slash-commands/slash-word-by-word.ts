@@ -34,7 +34,8 @@ export default function command(): WSlashCommand {
       const request = await ws.supabase
         .from("ws_quran_word_by_word")
         .select("*")
-        .eq("verse_id", query);
+        .eq("verse_id", query)
+        .order("word_index", { ascending: true });
 
       if (request.error) {
         await interaction.reply({
