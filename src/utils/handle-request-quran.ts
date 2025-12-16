@@ -81,6 +81,7 @@ export class HandleQuranRequest extends DiscordRequest {
         subtitles: this.getStringInput("no-commentary") !== "yes",
         wordByWord: false,
       },
+      normalizeGodCasing: true
     });
 
     if (results.status === "success") {
