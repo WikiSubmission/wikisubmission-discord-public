@@ -8,12 +8,12 @@ export class DiscordRequest {
   getStringInput(queryKey = "query"): string | null {
     const q = Array.isArray(this.interaction.options)
       ? // Cached
-        this.interaction.options.find(
-          (i: { name: string; type: number; value: string }) =>
-            i.name === queryKey
-        )?.value
+      this.interaction.options.find(
+        (i: { name: string; type: number; value: string }) =>
+          i.name === queryKey
+      )?.value
       : // Resolvable
-        this.interaction.options.get(queryKey)?.value?.toString();
+      this.interaction.options.get(queryKey)?.value?.toString();
 
     return q || null;
   }
@@ -49,6 +49,10 @@ export class DiscordRequest {
           return "german";
         case "bengali":
           return "bengali";
+        case "spanish":
+          return "spanish";
+        case "urdu":
+          return "urdu";
         default:
           return "english";
       }
@@ -79,6 +83,10 @@ export class DiscordRequest {
         return "german";
       case "bequran":
         return "bengali";
+      case "urquran":
+        return "urdu";
+      case "esquran":
+        return "spanish";
       default:
         return "english";
     }
