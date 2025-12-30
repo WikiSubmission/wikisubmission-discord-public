@@ -44,7 +44,7 @@ export class Bot {
     );
 
     // [Wait for client]
-    Bot.client.once("ready", async () => {
+    Bot.client.once("clientReady", async () => {
       // [Slash commands]
       await this.registerSlashCommands();
       await this.listenForSlashCommands();
