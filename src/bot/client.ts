@@ -183,7 +183,7 @@ export class Bot {
 
     // [Add event listener to listen for slash commands]
     this.addEventListener("interactionCreate", async (interaction) => {
-      if (interaction.isCommand()) {
+      if (interaction.isChatInputCommand() || interaction.isContextMenuCommand()) {
         // [Get start timestamp]
         const startTime = Date.now();
 
