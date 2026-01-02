@@ -32,7 +32,7 @@ export class HandleNewslettersRequest extends DiscordRequest {
         });
         // Delete error message after 3 seconds
         setTimeout(() => {
-          this.interaction.deleteReply().catch(() => {});
+          this.interaction.deleteReply().catch(() => { });
         }, 3000);
       } catch (editError) {
         // If edit fails, try to reply instead
@@ -42,7 +42,7 @@ export class HandleNewslettersRequest extends DiscordRequest {
         });
         // Delete error message after 3 seconds
         setTimeout(() => {
-          followUpMessage.delete().catch(() => {});
+          followUpMessage.delete().catch(() => { });
         }, 3000);
       }
     }
@@ -73,10 +73,8 @@ export class HandleNewslettersRequest extends DiscordRequest {
         limitedData
           .map(
             (i) =>
-              `[${i.year} ${capitalize(i.month)}, page ${
-                i.page
-              }](https://www.masjidtucson.org/publications/books/sp/${
-                i.year
+              `[${i.year} ${capitalize(i.month)}, page ${i.page
+              }](https://www.masjidtucson.org/publications/books/sp/${i.year
               }/${i.month}/page${i.page}.html) - ${i.content}`
           )
           .join("\n\n")
@@ -111,42 +109,41 @@ export class HandleNewslettersRequest extends DiscordRequest {
 
       return {
         content: this.isSearchRequest()
-          ? `Found **${originalCount > 348 ? "350+" : originalCount}** newsletter instance${originalCount > 1 ? "s" : ""} with \`${query}\``
+          ? `Found **${originalCount > 348 ? "350+" : originalCount}** newsletter instance${originalCount > 1 ? "s" : ""} with \`${query}\`${originalCount > 10 ? `\n[Search on wikisubmission.org →](https://wikisubmission.org/search?q=${query}&type=newsletters)` : ''}`
           : undefined,
         embeds: [
           new EmbedBuilder()
             .setTitle(title)
             .setDescription(truncatedDescription)
             .setFooter({
-              text: `${footer}${
-                pages.length > 1 ? ` • Page ${this.page}/${pages.length}` : ``
-              }`,
+              text: `${footer}${pages.length > 1 ? ` • Page ${this.page}/${pages.length}` : ``
+                }`,
             })
             .setColor("DarkButNotBlack"),
         ],
         components:
           pages.length > 1
             ? [
-                new ActionRowBuilder<any>().setComponents(
-                  ...(this.page > 1
-                    ? [
-                        new ButtonBuilder()
-                          .setLabel("Previous page")
-                          .setCustomId(`page_${this.page - 1}`)
-                          .setStyle(2),
-                      ]
-                    : []),
+              new ActionRowBuilder<any>().setComponents(
+                ...(this.page > 1
+                  ? [
+                    new ButtonBuilder()
+                      .setLabel("Previous page")
+                      .setCustomId(`page_${this.page - 1}`)
+                      .setStyle(2),
+                  ]
+                  : []),
 
-                  ...(this.page !== pages.length
-                    ? [
-                        new ButtonBuilder()
-                          .setLabel("Next page")
-                          .setCustomId(`page_${this.page + 1}`)
-                          .setStyle(1),
-                      ]
-                    : [])
-                ),
-              ]
+                ...(this.page !== pages.length
+                  ? [
+                    new ButtonBuilder()
+                      .setLabel("Next page")
+                      .setCustomId(`page_${this.page + 1}`)
+                      .setStyle(1),
+                  ]
+                  : [])
+              ),
+            ]
             : [],
       };
     } else {

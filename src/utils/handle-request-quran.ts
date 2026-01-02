@@ -35,7 +35,7 @@ export class HandleQuranRequest extends DiscordRequest {
         });
         // Delete error message after 3 seconds
         setTimeout(() => {
-          this.interaction.deleteReply().catch(() => {});
+          this.interaction.deleteReply().catch(() => { });
         }, 3000);
       } catch (editError) {
         // If edit fails, try to reply instead
@@ -45,7 +45,7 @@ export class HandleQuranRequest extends DiscordRequest {
         });
         // Delete error message after 3 seconds
         setTimeout(() => {
-          followUpMessage.delete().catch(() => {});
+          followUpMessage.delete().catch(() => { });
         }, 3000);
       }
     }
@@ -105,9 +105,9 @@ export class HandleQuranRequest extends DiscordRequest {
             ) {
               const subtitleText =
                 result.ws_quran_subtitles[
-                  language in result.ws_quran_subtitles
-                    ? (language as keyof typeof result.ws_quran_subtitles)
-                    : "english"
+                language in result.ws_quran_subtitles
+                  ? (language as keyof typeof result.ws_quran_subtitles)
+                  : "english"
                 ];
               verseContent += `\`${String(subtitleText)}\`\n\n`;
             }
@@ -133,9 +133,9 @@ export class HandleQuranRequest extends DiscordRequest {
             ) {
               const footnoteText =
                 result.ws_quran_footnotes[
-                  language in result.ws_quran_footnotes
-                    ? (language as keyof typeof result.ws_quran_footnotes)
-                    : "english"
+                language in result.ws_quran_footnotes
+                  ? (language as keyof typeof result.ws_quran_footnotes)
+                  : "english"
                 ];
               verseContent += `*${String(footnoteText)}*\n\n`;
             }
@@ -160,18 +160,18 @@ export class HandleQuranRequest extends DiscordRequest {
               case "subtitle":
                 const subtitleContent =
                   result[
-                    language in result
-                      ? (language as keyof typeof result)
-                      : "english"
+                  language in result
+                    ? (language as keyof typeof result)
+                    : "english"
                   ];
                 verseContent = `**[${result.verse_id}]** Subtitle: ${String(subtitleContent)}`;
                 break;
               case "footnote":
                 const footnoteContent =
                   result[
-                    language in result
-                      ? (language as keyof typeof result)
-                      : "english"
+                  language in result
+                    ? (language as keyof typeof result)
+                    : "english"
                   ];
                 verseContent = `**[${result.verse_id}]** Footnote: *${String(footnoteContent)}*`;
                 break;
@@ -214,7 +214,7 @@ export class HandleQuranRequest extends DiscordRequest {
 
       return {
         content: this.isSearchRequest()
-          ? `Found **${results.totalMatches > 348 ? "350+" : results.totalMatches}** verse${results.totalMatches > 1 ? "s" : ""} with \`${query}\``
+          ? `Found **${results.totalMatches > 348 ? "350+" : results.totalMatches}** verse${results.totalMatches > 1 ? "s" : ""} with \`${query}\`${results.type === "search" && results.totalMatches > 10 ? `\n[Search on wikisubmission.org →](https://wikisubmission.org/quran?q=${query})` : ''}`
           : undefined,
         embeds: [
           new EmbedBuilder()
@@ -228,26 +228,26 @@ export class HandleQuranRequest extends DiscordRequest {
         components:
           pages.length > 1
             ? [
-                new ActionRowBuilder<any>().setComponents(
-                  ...(this.page > 1
-                    ? [
-                        new ButtonBuilder()
-                          .setLabel("Previous page")
-                          .setCustomId(`page_${this.page - 1}`)
-                          .setStyle(2),
-                      ]
-                    : []),
+              new ActionRowBuilder<any>().setComponents(
+                ...(this.page > 1
+                  ? [
+                    new ButtonBuilder()
+                      .setLabel("Previous page")
+                      .setCustomId(`page_${this.page - 1}`)
+                      .setStyle(2),
+                  ]
+                  : []),
 
-                  ...(this.page !== pages.length
-                    ? [
-                        new ButtonBuilder()
-                          .setLabel("Next page")
-                          .setCustomId(`page_${this.page + 1}`)
-                          .setStyle(1),
-                      ]
-                    : [])
-                ),
-              ]
+                ...(this.page !== pages.length
+                  ? [
+                    new ButtonBuilder()
+                      .setLabel("Next page")
+                      .setCustomId(`page_${this.page + 1}`)
+                      .setStyle(1),
+                  ]
+                  : [])
+              ),
+            ]
             : [],
       };
     } else {
