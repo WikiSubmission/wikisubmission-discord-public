@@ -109,7 +109,7 @@ export class HandleNewslettersRequest extends DiscordRequest {
 
       return {
         content: this.isSearchRequest()
-          ? `Found **${originalCount > 348 ? "350+" : originalCount}** newsletter instance${originalCount > 1 ? "s" : ""} with \`${query}\`${originalCount > 10 ? `\n[Search on wikisubmission.org →](https://wikisubmission.org/search?q=${query}&type=newsletters)` : ''}`
+          ? `Found **${originalCount > 348 ? "350+" : originalCount}** newsletter instance${originalCount > 1 ? "s" : ""} with \`${query}\`${originalCount > 10 ? `\n[Search on wikisubmission.org →](https://wikisubmission.org/search?q=${encodeURIComponent(query)}&type=newsletters)` : ''}`
           : undefined,
         embeds: [
           new EmbedBuilder()
