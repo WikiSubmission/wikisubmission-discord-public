@@ -26,9 +26,8 @@ export default function command(): WSlashCommand {
         },
       },
       {
-        name: "publicly-visible",
-        description:
-          "Make the result viewable to others in the chat (it's hidden by default)",
+        name: "asr-adjustment",
+        description: "Adjust asr calculation (midpoint)",
         type: ApplicationCommandOptionType.String,
         choices: [
           {
@@ -38,8 +37,9 @@ export default function command(): WSlashCommand {
         ],
       },
       {
-        name: "asr-adjustment",
-        description: "Adjust asr calculation (midpoint)",
+        name: "publicly-visible",
+        description:
+          "Make the result viewable to others in the chat (hidden by default)",
         type: ApplicationCommandOptionType.String,
         choices: [
           {
@@ -55,7 +55,10 @@ export default function command(): WSlashCommand {
       );
 
       fetchURL.searchParams.append("highlight", "true");
-      if (interaction.options.get("asr-adjustment")?.value === "yes") {
+
+      const asrAdjustment = interaction.options.get("asr-adjustment")?.value === "yes";
+
+      if (asrAdjustment) {
         fetchURL.searchParams.append("asr_adjustment", "true");
       }
 
@@ -68,8 +71,13 @@ export default function command(): WSlashCommand {
 
       if (request && request && !request.error) {
         await interaction.reply({
+          content: `[View on wikisubmission.org →](https://wikisubmission.org/prayer-times/?q=${encodeURIComponent(request.location_string)}${asrAdjustment ? "&asr_adjustment=true" : ""})`,
           embeds: [
             new EmbedBuilder()
+              .setAuthor({
+                name: `Prayer Times`,
+                iconURL: `https://flagcdn.com/48x36/${request.country_code.toLowerCase()}.png`,
+              })
               .setTitle(request.location_string)
               .setDescription(request.status_string)
               .addFields(
@@ -84,8 +92,7 @@ export default function command(): WSlashCommand {
                 {
                   name: "Up Next",
                   value: codify(
-                    `${capitalized(request.upcoming_prayer)} (${
-                      request.upcoming_prayer_time_left
+                    `${capitalized(request.upcoming_prayer)} (${request.upcoming_prayer_time_left
                     } left)`
                   ),
                 },
@@ -102,12 +109,8 @@ export default function command(): WSlashCommand {
                   ),
                 }
               )
-              .setAuthor({
-                name: `Prayer Times`,
-                iconURL: `https://flagcdn.com/48x36/${request.country_code.toLowerCase()}.png`,
-              })
               .setFooter({
-                text: request.local_timezone,
+                text: (asrAdjustment ? "Using midpoint method for Asr" : "Using standard method for Asr") + " • " + request.local_timezone,
               })
               .setColor("DarkButNotBlack"),
           ],
