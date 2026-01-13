@@ -126,6 +126,11 @@ export class HandleQuranRequest extends DiscordRequest {
               verseContent += `**[${result.verse_id_arabic}]** ${arabicText}\n\n`;
             }
 
+            if (this.getStringInput("with-transliteration") === "yes") {
+              const transliterationText = result.ws_quran_text.transliterated;
+              verseContent += `${transliterationText}\n\n`;
+            }
+
             // [Footnotes]
             if (
               result.ws_quran_footnotes &&
