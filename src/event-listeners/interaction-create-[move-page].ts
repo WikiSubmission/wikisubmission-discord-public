@@ -22,7 +22,7 @@ export default function listener(): WEventListener {
               // Original requester.
               cachedData.user_id === interaction.user.id ||
               // Or, insider and above.
-              authenticateMember(interaction.member, "INSIDER_AND_ABOVE")
+              authenticateMember(interaction.member, "EVENT_ORGANIZER_AND_ABOVE")
             ) {
               // Extract desired page from custom ID.
               const desiredPage = parseInt(
@@ -74,20 +74,20 @@ export default function listener(): WEventListener {
                     new ActionRowBuilder<any>().setComponents(
                       ...(desiredPage > 1
                         ? [
-                            new ButtonBuilder()
-                              .setLabel("Previous page")
-                              .setCustomId(`page_${desiredPage - 1}`)
-                              .setStyle(2),
-                          ]
+                          new ButtonBuilder()
+                            .setLabel("Previous page")
+                            .setCustomId(`page_${desiredPage - 1}`)
+                            .setStyle(2),
+                        ]
                         : []),
 
                       ...(desiredPage !== cachedData.total_pages
                         ? [
-                            new ButtonBuilder()
-                              .setLabel("Next page")
-                              .setCustomId(`page_${desiredPage + 1}`)
-                              .setStyle(1),
-                          ]
+                          new ButtonBuilder()
+                            .setLabel("Next page")
+                            .setCustomId(`page_${desiredPage + 1}`)
+                            .setStyle(1),
+                        ]
                         : [])
                     ),
                   ],

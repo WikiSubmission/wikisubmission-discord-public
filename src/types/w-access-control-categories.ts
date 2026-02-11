@@ -3,4 +3,5 @@ export type WAccessControlCategories =
   | "VERIFIED_AND_ABOVE"
   | "INSIDER_AND_ABOVE"
   | "MOD_AND_ABOVE"
+  | "EVENT_ORGANIZER_AND_ABOVE"
   | "ADMIN";

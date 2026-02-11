@@ -39,6 +39,16 @@ export function authenticateMember(
       requiredRoles.add("Developer");
       break;
 
+    case "EVENT_ORGANIZER_AND_ABOVE":
+      requiredRoles.add("Event Organizer");
+      requiredRoles.add("Insider");
+      requiredRoles.add("Mod");
+      requiredRoles.add("Moderator");
+      requiredRoles.add("Admin");
+      requiredRoles.add("Administrator");
+      requiredRoles.add("Developer");
+      break;
+
     case "MOD_AND_ABOVE":
       requiredRoles.add("Mod");
       requiredRoles.add("Moderator");
