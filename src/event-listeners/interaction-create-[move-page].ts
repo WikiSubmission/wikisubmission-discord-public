@@ -3,6 +3,7 @@ import { WDiscordCommandResult } from "../types/w-discord-command-result";
 import { WEventListener } from "../types/w-event-listener";
 import { authenticateMember } from "../utils/authenticate-member";
 import { getCachedPageData } from "../utils/cache-interaction";
+import { logError } from "../utils/log-error";
 
 export default function listener(): WEventListener {
   return {
@@ -100,17 +101,23 @@ export default function listener(): WEventListener {
                   components: output.components,
                 });
               } catch (error: any) {
-                // Errors thrown from re-processing the request, or otherwise an internal error.
+                logError(error, "Pagination Error");
+                const errorMessage = (error.message || "Internal Server Error").substring(0, 1900);
                 try {
-                  await interaction.editReply({
-                    content: `\`${error.message || "Internal Server Error"}\``,
-                  });
+                  if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply({
+                      content: `\`${errorMessage}\``,
+                      embeds: [],
+                      components: [],
+                    });
+                  } else {
+                    await interaction.reply({
+                      content: `\`${errorMessage}\``,
+                      flags: ["Ephemeral"],
+                    });
+                  }
                 } catch (editError) {
-                  // If edit fails, try to follow up instead
-                  await interaction.followUp({
-                    content: `\`${error.message || "Internal Server Error"}\``,
-                    flags: ["Ephemeral"],
-                  });
+                  logError(editError, "Failed to send pagination error reply");
                 }
               }
             } else {

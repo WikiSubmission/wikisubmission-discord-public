@@ -29,24 +29,32 @@ export class HandleQuranRequest extends DiscordRequest {
       });
     } catch (error: any) {
       logError(error, `(/${this.interaction.commandName})`);
+
+      const errorMessage = (error.message || "Internal Server Error").substring(
+        0,
+        1900
+      );
+
       try {
-        await this.interaction.editReply({
-          content: `\`${error.message || "Internal Server Error"}\``,
-        });
+        if (this.interaction.deferred || this.interaction.replied) {
+          await this.interaction.editReply({
+            content: `\`${errorMessage}\``,
+            embeds: [],
+            components: [],
+          });
+        } else {
+          await this.interaction.reply({
+            content: `\`${errorMessage}\``,
+            ephemeral: true,
+          });
+        }
+
         // Delete error message after 3 seconds
         setTimeout(() => {
           this.interaction.deleteReply().catch(() => { });
         }, 3000);
       } catch (editError) {
-        // If edit fails, try to reply instead
-        const followUpMessage = await this.interaction.followUp({
-          content: `\`${error.message || "Internal Server Error"}\``,
-          ephemeral: true,
-        });
-        // Delete error message after 3 seconds
-        setTimeout(() => {
-          followUpMessage.delete().catch(() => { });
-        }, 3000);
+        logError(editError, "Failed to send error reply");
       }
     }
   }
@@ -256,7 +264,11 @@ export class HandleQuranRequest extends DiscordRequest {
             : [],
       };
     } else {
-      throw new Error(`No verse(s) found with '${query}'`);
+      throw new Error(
+        (results as any).error?.message ||
+        (results as any).error ||
+        `No verse(s) found with '${query}'`
+      );
     }
   }
 
