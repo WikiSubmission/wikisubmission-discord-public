@@ -227,7 +227,7 @@ export class HandleQuranRequest extends DiscordRequest {
 
       return {
         content: this.isSearchRequest()
-          ? `Found **${results.totalMatches > 348 ? "350+" : results.totalMatches}** verse${results.totalMatches > 1 ? "s" : ""} with \`${query}\`${results.type === "search" && results.totalMatches > 10 ? `\n[Search on wikisubmission.org →](https://wikisubmission.org/quran?q=${encodeURIComponent(query)})` : ''}`
+          ? `Found **${results.totalMatches > 348 ? "350+" : results.totalMatches}** result${results.totalMatches > 1 ? "s" : ""} with \`${query}\`${results.type === "search" && results.totalMatches > 10 ? `\n[Search on wikisubmission.org →](https://wikisubmission.org/quran?q=${encodeURIComponent(query)})` : ''}`
           : undefined,
         embeds: [
           new EmbedBuilder()
