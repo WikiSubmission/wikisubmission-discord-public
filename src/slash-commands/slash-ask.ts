@@ -103,19 +103,24 @@ export default function command(): WSlashCommand {
         // Greedily split into messages; suffix only appended to last message
         const messages: string[] = [];
         let remaining = fullAnswer;
-        let isFirst = true;
 
-        while (remaining.length > 0) {
-          const prefix = isFirst ? header : "";
-          if ((prefix + remaining + suffix).length <= LIMIT) {
-            messages.push(prefix + remaining + suffix);
-            remaining = "";
+        while (remaining.length > 0 || messages.length === 0) {
+          const prefix = messages.length === 0 ? header : "";
+          const maxForMessage = LIMIT - prefix.length;
+          const maxLastChunk = Math.max(0, maxForMessage - suffix.length);
+
+          if (remaining.length <= maxLastChunk) {
+            // Remaining fits alongside suffix — this is the last message
+            messages.push((prefix + remaining + suffix).substring(0, LIMIT));
+            break;
+          } else if (remaining.length === 0) {
+            // No answer content but still need at least one message
+            messages.push((prefix + suffix).substring(0, LIMIT));
+            break;
           } else {
-            const maxChunk = LIMIT - prefix.length;
-            messages.push(prefix + remaining.substring(0, maxChunk));
-            remaining = remaining.substring(maxChunk);
+            messages.push(prefix + remaining.substring(0, maxForMessage));
+            remaining = remaining.substring(maxForMessage);
           }
-          isFirst = false;
         }
 
         const safe = (s: string) => s.length > 2000 ? s.substring(0, 1997) + "…" : s;
