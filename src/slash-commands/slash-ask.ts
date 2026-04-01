@@ -45,6 +45,7 @@ export default function command(): WSlashCommand {
         name: "question",
         description: "Your question",
         type: ApplicationCommandOptionType.String,
+        max_length: 500,
         required: true,
       },
     ],
@@ -117,9 +118,10 @@ export default function command(): WSlashCommand {
           isFirst = false;
         }
 
-        await interaction.editReply({ content: messages[0] });
+        const safe = (s: string) => s.length > 2000 ? s.substring(0, 1997) + "…" : s;
+        await interaction.editReply({ content: safe(messages[0]) });
         for (let i = 1; i < messages.length; i++) {
-          await interaction.followUp({ content: messages[i] });
+          await interaction.followUp({ content: safe(messages[i]) });
         }
       } catch (error: any) {
         logError(error, `(/ask)`);
