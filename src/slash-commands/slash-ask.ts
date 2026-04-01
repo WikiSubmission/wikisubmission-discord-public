@@ -11,6 +11,40 @@ function isVerseSource(source: string): boolean {
   return /^\d+:\d+$/.test(source);
 }
 
+function safeCutPoint(text: string, max: number): number {
+  if (text.length <= max) return text.length;
+
+  let cut = max;
+
+  // Avoid cutting inside a markdown link [text](url)
+  const before = text.substring(0, cut);
+  const lastBracket = before.lastIndexOf("[");
+  if (lastBracket !== -1) {
+    const bracketParen = text.indexOf("](", lastBracket);
+    if (bracketParen !== -1) {
+      if (bracketParen >= cut) {
+        // Cut is inside the [text] part
+        cut = lastBracket;
+      } else {
+        // Cut is past ]( — check if we're still inside the URL
+        const closeParen = text.indexOf(")", bracketParen + 2);
+        if (closeParen !== -1 && closeParen >= cut) {
+          cut = lastBracket;
+        }
+      }
+    }
+  }
+
+  // Prefer paragraph or line break
+  const sub = text.substring(0, cut);
+  const para = sub.lastIndexOf("\n\n");
+  if (para > cut * 0.5) return para;
+  const line = sub.lastIndexOf("\n");
+  if (line > cut * 0.5) return line;
+
+  return cut;
+}
+
 function linkifyAnswerText(text: string): string {
   // Source: appendix:N:N → Appendix N link (before generic verse pattern)
   text = text.replace(/Source: appendix:(\d+):\d+/g, (_, num) =>
@@ -118,8 +152,9 @@ export default function command(): WSlashCommand {
             messages.push((prefix + suffix).substring(0, LIMIT));
             break;
           } else {
-            messages.push(prefix + remaining.substring(0, maxForMessage));
-            remaining = remaining.substring(maxForMessage);
+            const cut = Math.max(1, safeCutPoint(remaining, maxForMessage));
+            messages.push(prefix + remaining.substring(0, cut));
+            remaining = remaining.substring(cut);
           }
         }
 
