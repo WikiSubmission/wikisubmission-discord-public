@@ -92,15 +92,16 @@ export default function command(): WSlashCommand {
           sourcesLine = `${otherCount} source${otherCount > 1 ? "s" : ""}`;
         }
 
-        const answerText = linkifyAnswerText(data.answer?.substring(0, 1900) || "No answer returned.");
+        const header = `## Q: ${question}\n▬▬▬▬▬▬▬▬▬▬`;
         const footer = `\n-# **SubmitterAI** • \`/ask\`\n-# Answer may contain inaccuracies. Please verify all information.`;
-        const content = [
-          `## Q: ${question}`,
-          `▬▬▬▬▬▬▬▬▬▬`,
-          answerText,
-          sourcesLine ? `\n-# Sources: ${sourcesLine}` : "",
-          footer,
-        ]
+        const sourcesSection = sourcesLine ? `\n\n-# Sources: ${sourcesLine}` : "";
+        const overhead = header.length + footer.length + sourcesSection.length + 2; // +2 for joins
+        const maxAnswer = 2000 - overhead;
+        const rawAnswer = data.answer || "No answer returned.";
+        const answerText = linkifyAnswerText(
+          rawAnswer.length > maxAnswer ? rawAnswer.substring(0, maxAnswer - 1) + "…" : rawAnswer
+        );
+        const content = [header, answerText + sourcesSection, footer]
           .filter(Boolean)
           .join("\n");
 
