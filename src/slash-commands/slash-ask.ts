@@ -95,7 +95,7 @@ export default function command(): WSlashCommand {
         const answerText = linkifyAnswerText(data.answer?.substring(0, 1900) || "No answer returned.");
         const footer = `\n-# **SubmitterAI** • \`/ask\`\n-# Answer may contain inaccuracies. Please verify all information.`;
         const content = [
-          `## ${question}`,
+          `## Q: ${question}`,
           `▬▬▬▬▬▬▬▬▬▬`,
           answerText,
           sourcesLine ? `\n-# Sources: ${sourcesLine}` : "",
