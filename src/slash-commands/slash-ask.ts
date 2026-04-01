@@ -92,20 +92,35 @@ export default function command(): WSlashCommand {
           sourcesLine = `${otherCount} source${otherCount > 1 ? "s" : ""}`;
         }
 
-        const header = `## Q: ${question}\n▬▬▬▬▬▬▬▬▬▬`;
-        const footer = `\n-# **SubmitterAI** • \`/ask\`\n-# Answer may contain inaccuracies. Please verify all information.`;
-        const sourcesSection = sourcesLine ? `\n\n-# Sources: ${sourcesLine}` : "";
-        const overhead = header.length + footer.length + sourcesSection.length + 2; // +2 for joins
-        const maxAnswer = 2000 - overhead;
-        const rawAnswer = data.answer || "No answer returned.";
-        const answerText = linkifyAnswerText(
-          rawAnswer.length > maxAnswer ? rawAnswer.substring(0, maxAnswer - 1) + "…" : rawAnswer
-        );
-        const content = [header, answerText + sourcesSection, footer]
-          .filter(Boolean)
-          .join("\n");
+        const LIMIT = 2000;
+        const header = `## Q: ${question}\n▬▬▬▬▬▬▬▬▬▬\n`;
+        const suffix = (sourcesLine ? `\n\n-# Sources: ${sourcesLine}` : "") +
+          `\n-# **SubmitterAI** • \`/ask\`\n-# Answer may contain inaccuracies. Please verify all information.`;
 
-        await interaction.editReply({ content });
+        const fullAnswer = linkifyAnswerText(data.answer || "No answer returned.");
+
+        // Greedily split into messages; suffix only appended to last message
+        const messages: string[] = [];
+        let remaining = fullAnswer;
+        let isFirst = true;
+
+        while (remaining.length > 0) {
+          const prefix = isFirst ? header : "";
+          if ((prefix + remaining + suffix).length <= LIMIT) {
+            messages.push(prefix + remaining + suffix);
+            remaining = "";
+          } else {
+            const maxChunk = LIMIT - prefix.length;
+            messages.push(prefix + remaining.substring(0, maxChunk));
+            remaining = remaining.substring(maxChunk);
+          }
+          isFirst = false;
+        }
+
+        await interaction.editReply({ content: messages[0] });
+        for (let i = 1; i < messages.length; i++) {
+          await interaction.followUp({ content: messages[i] });
+        }
       } catch (error: any) {
         logError(error, `(/ask)`);
 
