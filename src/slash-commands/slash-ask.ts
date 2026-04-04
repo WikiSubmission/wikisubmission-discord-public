@@ -149,7 +149,11 @@ export default function command(): WSlashCommand {
             messages.push((prefix + suffix).substring(0, LIMIT));
             break;
           } else {
-            const cut = Math.max(1, safeCutPoint(remaining, maxForMessage));
+            const fullCut = safeCutPoint(remaining, maxForMessage);
+            // If fullCut would consume all remaining, cut shorter to leave room for suffix in next chunk
+            const cut = fullCut >= remaining.length && maxLastChunk > 0
+              ? Math.max(1, safeCutPoint(remaining, maxLastChunk))
+              : Math.max(1, fullCut);
             messages.push(prefix + remaining.substring(0, cut));
             remaining = remaining.substring(cut);
           }
