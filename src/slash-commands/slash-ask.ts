@@ -115,12 +115,9 @@ export default function command(): WSlashCommand {
 
         let sourcesLine = "";
         if (verseSources.length > 0) {
-          const verseLinks = verseSources
-            .map((s) => {
-              const [chapter, verse] = s.split(":");
-              return `[${s}](https://wikisubmission.org/quran/${chapter}?verse=${verse})`;
-            })
-            .join(" ");
+          const verseList = verseSources.join(", ");
+          const verseQuery = verseSources.join(",");
+          const verseLinks = `[${verseList}](https://wikisubmission.org/quran/?q=${verseQuery})`;
           sourcesLine = verseLinks;
           if (otherCount > 0) sourcesLine += ` and ${otherCount} more...`;
         } else if (otherCount > 0) {
