@@ -1,74 +1,8 @@
-import { ApplicationCommandOptionType } from "discord.js";
+import { ActionRowBuilder, ApplicationCommandOptionType, ButtonBuilder, ButtonStyle, MessageFlags } from "discord.js";
 import { WSlashCommand } from "../types/w-slash-command";
 import { logError } from "../utils/log-error";
-
-interface SubmitterAIResponse {
-  answer: string;
-  sources: string[];
-}
-
-function isVerseSource(source: string): boolean {
-  return /^\d+:\d+$/.test(source);
-}
-
-function safeCutPoint(text: string, max: number): number {
-  if (text.length <= max) return text.length;
-
-  let cut = max;
-
-  // Avoid cutting inside a markdown link [text](url)
-  const before = text.substring(0, cut);
-  const lastBracket = before.lastIndexOf("[");
-  if (lastBracket !== -1) {
-    const bracketParen = text.indexOf("](", lastBracket);
-    if (bracketParen !== -1) {
-      if (bracketParen >= cut) {
-        // Cut is inside the [text] part
-        cut = lastBracket;
-      } else {
-        // Cut is past ]( — check if we're still inside the URL
-        const closeParen = text.indexOf(")", bracketParen + 2);
-        if (closeParen !== -1 && closeParen >= cut) {
-          cut = lastBracket;
-        }
-      }
-    }
-  }
-
-  // Prefer paragraph or line break
-  const sub = text.substring(0, cut);
-  const para = sub.lastIndexOf("\n\n");
-  if (para > cut * 0.5) return para;
-  const line = sub.lastIndexOf("\n");
-  if (line > cut * 0.5) return line;
-
-  return cut;
-}
-
-function linkifyAnswerText(text: string): string {
-  // Source: appendix:N:N → Appendix N link (before generic verse pattern)
-  text = text.replace(/Source: appendix:(\d+):\d+/g, (_, num) =>
-    `Source: [Appendix ${num}](https://wikisubmission.org/appendix/${num})`
-  );
-
-  // Source: qurantalk:Title → qurantalk link
-  text = text.replace(/Source: qurantalk:(.+?)(?=\n|$)/gm, (_, title) => {
-    const slug = title.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-    return `Source: [${title.trim()}](https://www.qurantalk.com/${slug})`;
-  });
-
-  // Source: N:N(-N)? → verse link
-  text = text.replace(/Source: (\d+):(\d+)(?:-\d+)?/g, (_, chapter, verse) =>
-    `Source: [${chapter}:${verse}](https://wikisubmission.org/quran/${chapter}?verse=${verse})`
-  );
-
-  // [N:N] bracketed verse references in prose
-  text = text.replace(/\[(\d+):(\d+)\]/g, (_, chapter, verse) =>
-    `[${chapter}:${verse}](https://wikisubmission.org/quran/${chapter}?verse=${verse})`
-  );
-
-  return text;
-}
+import { storeAskMessages } from "../utils/ask-message-cache";
+import { buildAskMessages, generateConversationId, querySubmitterAI } from "../utils/submitter-ai";
 
 export default function command(): WSlashCommand {
   return {
@@ -89,81 +23,41 @@ export default function command(): WSlashCommand {
       try {
         await interaction.deferReply();
 
-        const apiKey = process.env.SUBMITTERAI_API_KEY;
-        const apiUrl = process.env.SUBMITTERAI_API_URL;
-        if (!apiKey) throw new Error("SUBMITTERAI_API_KEY is not configured");
-        if (!apiUrl) throw new Error("SUBMITTERAI_API_URL is not configured");
-
-        const response = await fetch(apiUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({ question }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`API error: ${response.status} ${response.statusText}`);
-        }
-
-        const data: SubmitterAIResponse = await response.json();
-
-        const allSources = data.sources || [];
-        const verseSources = allSources.filter(isVerseSource);
-        const otherCount = allSources.length - verseSources.length;
-
-        let sourcesLine = "";
-        if (verseSources.length > 0) {
-          const verseList = verseSources.join(", ");
-          const verseQuery = verseSources.join(",");
-          const verseLinks = `[${verseList}](https://wikisubmission.org/quran/?q=${verseQuery})`;
-          sourcesLine = verseLinks;
-          if (otherCount > 0) sourcesLine += ` and ${otherCount} more...`;
-        } else if (otherCount > 0) {
-          sourcesLine = `${otherCount} source${otherCount > 1 ? "s" : ""}`;
-        }
-
-        const LIMIT = 2000;
-        const header = `## Q: ${question}\n▬▬▬▬▬▬▬▬▬▬\n`;
-        const suffix = (sourcesLine ? `\n\n-# Sources: ${sourcesLine}` : "") +
-          `\n-# **SubmitterAI** • \`/ask\`\n-# Answer may contain inaccuracies. Please verify all information.`;
-
-        const fullAnswer = linkifyAnswerText(data.answer || "No answer returned.");
-
-        // Greedily split into messages; suffix only appended to last message
-        const messages: string[] = [];
-        let remaining = fullAnswer;
-
-        while (remaining.length > 0 || messages.length === 0) {
-          const prefix = messages.length === 0 ? header : "";
-          const maxForMessage = LIMIT - prefix.length;
-          const maxLastChunk = Math.max(0, maxForMessage - suffix.length);
-
-          if (remaining.length <= maxLastChunk) {
-            // Remaining fits alongside suffix — this is the last message
-            messages.push((prefix + remaining + suffix).substring(0, LIMIT));
-            break;
-          } else if (remaining.length === 0) {
-            // No answer content but still need at least one message
-            messages.push((prefix + suffix).substring(0, LIMIT));
-            break;
-          } else {
-            const fullCut = safeCutPoint(remaining, maxForMessage);
-            // If fullCut would consume all remaining, cut shorter to leave room for suffix in next chunk
-            const cut = fullCut >= remaining.length && maxLastChunk > 0
-              ? Math.max(1, safeCutPoint(remaining, maxLastChunk))
-              : Math.max(1, fullCut);
-            messages.push(prefix + remaining.substring(0, cut));
-            remaining = remaining.substring(cut);
-          }
-        }
+        const conversationId = generateConversationId();
+        const data = await querySubmitterAI(question, conversationId);
+        const messages = buildAskMessages(question, data);
 
         const safe = (s: string) => s.length > 2000 ? s.substring(0, 1997) + "…" : s;
-        await interaction.editReply({ content: safe(messages[0]) });
+
+        const buildRow = () => new ActionRowBuilder<any>().setComponents(
+          new ButtonBuilder()
+            .setLabel("Reply")
+            .setCustomId(`ask_reply:${conversationId}`)
+            .setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder()
+            .setLabel("Delete")
+            .setCustomId(`ask_delete:${conversationId}`)
+            .setStyle(ButtonStyle.Danger)
+        );
+
+        const first = await interaction.editReply({
+          content: safe(messages[0]),
+          components: messages.length === 1 ? [buildRow()] : [],
+          flags: MessageFlags.SuppressEmbeds,
+        });
+
+        const sentMessages = [first];
+
         for (let i = 1; i < messages.length; i++) {
-          await interaction.followUp({ content: safe(messages[i]) });
+          const msg = await interaction.followUp({
+            content: safe(messages[i]),
+            components: i === messages.length - 1 ? [buildRow()] : [],
+            flags: MessageFlags.SuppressEmbeds,
+          });
+          sentMessages.push(msg);
         }
+
+        storeAskMessages(conversationId, interaction.user.id, sentMessages);
       } catch (error: any) {
         logError(error, `(/ask)`);
 
