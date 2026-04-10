@@ -6,7 +6,7 @@
   "scripts": {
     "clean": "rimraf ./build",
     "build": "npm run clean && tsc",
-    "start": "npm run build && node build/index.js $*",
+    "start": "node build/index.js",
     "update-types": "npx supabase gen types --lang=typescript --project-id lbubcoodmaimkadoessn --schema internal > src/types/generated/database.types.ts",
     "sync-api": "cp ../ws-backend/openapi.yaml src/api/openapi.yaml",
     "generate": "openapi-typescript src/api/openapi.yaml -o src/api/types.gen.ts"
