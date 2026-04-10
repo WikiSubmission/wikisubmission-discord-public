@@ -3,7 +3,12 @@ import { WDiscordCommandResult } from "../types/w-discord-command-result";
 import { DiscordRequest } from "./handle-request";
 import { cachePageData } from "./cache-interaction";
 import { logError } from "./log-error";
-import { ws } from "./wikisubmission-sdk";
+import { wsApi, mapLangCodes } from "./ws-api";
+
+/** Convert API highlight tags (<b>word</b>) to Discord markdown bold (**word**). */
+function hlToMd(text: string): string {
+  return text.replace(/<b>(.*?)<\/b>/g, "**$1**");
+}
 
 export class HandleQuranRequest extends DiscordRequest {
   constructor(
@@ -51,225 +56,207 @@ export class HandleQuranRequest extends DiscordRequest {
 
         // Delete error message after 3 seconds
         setTimeout(() => {
-          this.interaction.deleteReply().catch(() => { });
+          this.interaction.deleteReply().catch(() => {});
         }, 3000);
       } catch (editError) {
-        logError(editError, "Failed to send error reply");
+        // If edit fails, try to reply instead
+        const followUpMessage = await this.interaction.followUp({
+          content: `\`${error.message || "Internal Server Error"}\``,
+          ephemeral: true,
+        });
+        // Delete error message after 3 seconds
+        setTimeout(() => {
+          followUpMessage.delete().catch(() => {});
+        }, 3000);
       }
     }
   }
 
   async getResults(): Promise<WDiscordCommandResult> {
-    const query =
-      this.interaction.commandName === "chapter"
-        ? this.getStringInput("chapter") // "/chapter"
-        : this.interaction.commandName.startsWith("search")
-          ? this.getStringInput("query") // "/search-quran"
-          : this.getStringInput("verse"); // "/quran, /equran, etc"
+    const cmdName = this.interaction.commandName as string;
+    const isSearch = cmdName.startsWith("search");
+    const isChapter = cmdName === "chapter" || cmdName === "footnote";
+
+    const query = isChapter
+      ? this.getStringInput("chapter")
+      : isSearch
+        ? this.getStringInput("query")
+        : this.getStringInput("verse");
 
     if (!query) throw new Error(`Missing query`);
 
-    const language = ws.Quran.Methods.parseLanguage(this.targetLanguage());
+    const withTranslit = this.getStringInput("with-transliteration") === "yes";
+    const targetLang = this.targetLanguage();
+    const langs = mapLangCodes(targetLang, withTranslit);
+    const primaryLang = langs[0];
+
     const includeCommentary = this.getStringInput("no-commentary") !== "yes";
+    const footnoteOnly = this.options?.footnoteOnly ?? false;
 
-    var title = "";
-    var verses: string[] = [];
-    var footer = "";
+    // --- Call the appropriate endpoint ---
+    let response;
+    let totalMatches = 0;
 
-    const results = await ws.Quran.query(query, {
-      highlight: true,
-      language: language,
-      strategy:
-        this.getStringInput("strict-search") === "yes" ? "strict" : "default",
-      adjustments: {
-        index: true,
-        chapters: true,
-        text: true,
-        footnotes: this.getStringInput("no-commentary") !== "yes",
-        subtitles: this.getStringInput("no-commentary") !== "yes",
-        wordByWord: false,
-      },
-      normalizeGodCasing: true
-    });
+    if (isSearch) {
+      response = await wsApi.searchQuran({
+        q: query,
+        langs,
+        limit: 100,
+      });
+      totalMatches = response.info?.total ?? 0;
+    } else if (isChapter) {
+      // query is a chapter number (e.g. "1" or "18")
+      const chNum = parseInt(query, 10);
+      if (isNaN(chNum) || chNum < 1 || chNum > 114) {
+        throw new Error(`Invalid chapter number '${query}'`);
+      }
+      response = await wsApi.getQuran({
+        chapter_number_start: chNum,
+        chapter_number_end: chNum,
+        langs,
+      });
+    } else {
+      response = await wsApi.getQuran({
+        verses: query,
+        langs,
+      });
+    }
 
-    if (results.status === "success") {
-      // [Use result metadata for title + footer]
-      title = results.metadata.formattedChapterTitle;
-      footer = results.metadata.formattedBookTitle;
+    const chapters = response.chapters ?? [];
+    if (chapters.length === 0) {
+      throw new Error(`No verse(s) found with '${query}'`);
+    }
 
-      // [Build description baesd on result.type]
-      switch (results.type) {
-        case "verse":
-        case "multiple_verses":
-        case "chapter": {
-          for (const result of results.data.slice(0, 350)) {
-            let verseContent = "";
+    // --- Title & footer ---
+    const firstChapter = chapters[0];
+    const chNum = firstChapter.cn ?? 0;
+    const chTitle =
+      firstChapter.titles?.[primaryLang] ?? firstChapter.titles?.["en"] ?? "";
+    const title = chapters.length === 1 ? `Sura ${chNum}, ${chTitle}` : `Quran`;
+    const footer = "Quran: The Final Testament";
 
-            // [Subtitles]
-            if (
-              result.ws_quran_subtitles &&
-              includeCommentary &&
-              !this.options?.footnoteOnly
-            ) {
-              const subtitleText =
-                result.ws_quran_subtitles[
-                language in result.ws_quran_subtitles
-                  ? (language as keyof typeof result.ws_quran_subtitles)
-                  : "english"
-                ];
-              verseContent += `\`${String(subtitleText)}\`\n\n`;
-            }
+    // --- Build verse content strings ---
+    const verses: string[] = [];
 
-            // [Text]
-            if (!this.options?.footnoteOnly) {
-              verseContent += `**[${result.verse_id}]** ${result.ws_quran_text[language]}\n\n`;
-            }
-
-            // [Arabic]
-            if (
-              this.interaction.commandName === "equran" &&
-              !this.options?.footnoteOnly
-            ) {
-              const arabicText = result.ws_quran_text.arabic;
-              verseContent += `**[${result.verse_id_arabic}]** ${arabicText}\n\n`;
-            }
-
-            if (this.getStringInput("with-transliteration") === "yes") {
-              const transliterationText = result.ws_quran_text.transliterated;
-              verseContent += `${transliterationText}\n\n`;
-            }
-
-            // [Footnotes]
-            if (
-              result.ws_quran_footnotes &&
-              (includeCommentary || this.options?.footnoteOnly)
-            ) {
-              const footnoteText =
-                result.ws_quran_footnotes[
-                language in result.ws_quran_footnotes
-                  ? (language as keyof typeof result.ws_quran_footnotes)
-                  : "english"
-                ];
-              verseContent += `*${String(footnoteText)}*\n\n`;
-            }
-
-            verses.push(verseContent.trim());
-          }
-          break;
-        }
-
-        case "search": {
-          for (const result of results.data.slice(0, 350)) {
-            let verseContent = "";
-            switch (result.hit) {
-              case "text":
-                const textContent = result[language];
-                verseContent = `**[${result.verse_id}]** ${textContent}`;
-                break;
-              case "chapter":
-                const chapterTitle = result[`title_${language}`];
-                verseContent = `**Chapter:** Sura ${result.chapter_number}, ${chapterTitle}`;
-                break;
-              case "subtitle":
-                const subtitleContent =
-                  result[
-                  language in result
-                    ? (language as keyof typeof result)
-                    : "english"
-                  ];
-                verseContent = `**[${result.verse_id}]** Subtitle: ${String(subtitleContent)}`;
-                break;
-              case "footnote":
-                const footnoteContent =
-                  result[
-                  language in result
-                    ? (language as keyof typeof result)
-                    : "english"
-                  ];
-                verseContent = `**[${result.verse_id}]** Footnote: *${String(footnoteContent)}*`;
-                break;
-            }
-            verses.push(verseContent);
-          }
-          break;
+    if (isSearch) {
+      for (const chapter of chapters) {
+        for (const verse of chapter.verses ?? []) {
+          const tr = verse.tr ?? {};
+          const raw = tr[primaryLang]?.hl ?? tr[primaryLang]?.tx ?? "";
+          verses.push(`**[${verse.vk}]** ${hlToMd(raw)}`);
         }
       }
+    } else {
+      for (const chapter of chapters) {
+        for (const result of (chapter.verses ?? []).slice(0, 350)) {
+          const tr = result.tr ?? {};
+          const translation = tr[primaryLang];
+          let verseContent = "";
 
-      // Split verses into pages that fit within Discord embed limit
-      const pages = this.splitVersesToPages(verses);
+          // [Subtitle]
+          if (translation?.s && includeCommentary && !footnoteOnly) {
+            verseContent += `\`${translation.s}\`\n\n`;
+          }
 
-      // Multi-page? Cache paginated data.
-      if (pages.length > 1) {
-        await cachePageData(this.interaction.id, {
-          user_id: this.interaction.user.id,
-          title: title,
-          footer: footer,
-          total_pages: pages.length,
-          content: pages,
-        });
+          // [Text]
+          if (!footnoteOnly) {
+            verseContent += `**[${result.vk}]** ${translation?.tx ?? ""}\n\n`;
+          }
+
+          // [Arabic] (equran: English + Arabic)
+          if (targetLang === "englishAndArabic" && !footnoteOnly) {
+            const arabicTr = tr["ar"];
+            verseContent += `**[${result.vk}]** ${arabicTr?.tx ?? ""}\n\n`;
+          }
+
+          // [Transliteration]
+          if (withTranslit) {
+            const translitTr = tr["tl"];
+            verseContent += `${translitTr?.tx ?? ""}\n\n`;
+          }
+
+          // [Footnote]
+          if (translation?.f && (includeCommentary || footnoteOnly)) {
+            verseContent += `*${translation.f}*\n\n`;
+          }
+
+          verses.push(verseContent.trim());
+        }
       }
+    }
 
-      // Validate page number
-      if (this.page > pages.length) {
-        throw new Error(`You've reached the last page`);
-      }
+    if (verses.length === 0) {
+      throw new Error(`No verse(s) found with '${query}'`);
+    }
 
-      if (this.page <= 0) {
-        throw new Error(`You're on the first page`);
-      }
+    // Split verses into pages that fit within Discord embed limit
+    const pages = this.splitVersesToPages(verses);
 
-      // Ensure description doesn't exceed Discord's limit
-      const pageDescription = pages[this.page - 1];
-      const truncatedDescription =
-        pageDescription.length > 4096
-          ? pageDescription.substring(0, 4093) + ""
-          : pageDescription;
+    // Multi-page? Cache paginated data.
+    if (pages.length > 1) {
+      await cachePageData(this.interaction.id, {
+        user_id: this.interaction.user.id,
+        title: title,
+        footer: footer,
+        total_pages: pages.length,
+        content: pages,
+      });
+    }
 
-      return {
-        content: this.isSearchRequest()
-          ? `Found **${results.totalMatches > 348 ? "350+" : results.totalMatches}** result${results.totalMatches > 1 ? "s" : ""} with \`${query}\`${results.type === "search" && results.totalMatches > 10 ? `\n[Search on wikisubmission.org →](https://wikisubmission.org/quran?q=${encodeURIComponent(query)})` : ''}`
-          : undefined,
-        embeds: [
-          new EmbedBuilder()
-            .setTitle(title.substring(0, 256))
-            .setDescription(truncatedDescription)
-            .setFooter({
-              text: `${footer}${pages.length > 1 ? ` • Page ${this.page}/${pages.length}` : ``}`,
-            })
-            .setColor("DarkButNotBlack"),
-        ],
-        components:
-          pages.length > 1
-            ? [
+    // Validate page number
+    if (this.page > pages.length) {
+      throw new Error(`You've reached the last page`);
+    }
+
+    if (this.page <= 0) {
+      throw new Error(`You're on the first page`);
+    }
+
+    // Ensure description doesn't exceed Discord's limit
+    const pageDescription = pages[this.page - 1];
+    const truncatedDescription =
+      pageDescription.length > 4096
+        ? pageDescription.substring(0, 4093) + ""
+        : pageDescription;
+
+    return {
+      content: isSearch
+        ? `Found **${totalMatches > 348 ? "350+" : totalMatches}** verse${totalMatches > 1 ? "s" : ""} with \`${query}\`${isSearch && totalMatches > 10 ? `\n[Search on wikisubmission.org →](https://wikisubmission.org/quran?q=${encodeURIComponent(query)})` : ""}`
+        : undefined,
+      embeds: [
+        new EmbedBuilder()
+          .setTitle(title.substring(0, 256))
+          .setDescription(truncatedDescription)
+          .setFooter({
+            text: `${footer}${pages.length > 1 ? ` • Page ${this.page}/${pages.length}` : ``}`,
+          })
+          .setColor("DarkButNotBlack"),
+      ],
+      components:
+        pages.length > 1
+          ? [
               new ActionRowBuilder<any>().setComponents(
                 ...(this.page > 1
                   ? [
-                    new ButtonBuilder()
-                      .setLabel("Previous page")
-                      .setCustomId(`page_${this.page - 1}`)
-                      .setStyle(2),
-                  ]
+                      new ButtonBuilder()
+                        .setLabel("Previous page")
+                        .setCustomId(`page_${this.page - 1}`)
+                        .setStyle(2),
+                    ]
                   : []),
 
                 ...(this.page !== pages.length
                   ? [
-                    new ButtonBuilder()
-                      .setLabel("Next page")
-                      .setCustomId(`page_${this.page + 1}`)
-                      .setStyle(1),
-                  ]
+                      new ButtonBuilder()
+                        .setLabel("Next page")
+                        .setCustomId(`page_${this.page + 1}`)
+                        .setStyle(1),
+                    ]
                   : [])
               ),
             ]
-            : [],
-      };
-    } else {
-      throw new Error(
-        (results as any).error?.message ||
-        (results as any).error ||
-        `No verse(s) found with '${query}'`
-      );
-    }
+          : [],
+    };
   }
 
   // Helper methods.
@@ -292,7 +279,7 @@ export class HandleQuranRequest extends DiscordRequest {
           pages.push(currentPage.trim());
           currentPage = verse;
         } else {
-          // If a single verse is too long, we have to include it anyway
+          // If a single verse is too long, include it anyway
           pages.push(verse);
         }
       } else {

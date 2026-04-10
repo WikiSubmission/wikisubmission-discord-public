@@ -7,7 +7,9 @@
     "clean": "rimraf ./build",
     "build": "npm run clean && tsc",
     "start": "npm run build && node build/index.js $*",
-    "update-types": "npx supabase gen types --lang=typescript --project-id lbubcoodmaimkadoessn --schema internal > src/types/generated/database.types.ts"
+    "update-types": "npx supabase gen types --lang=typescript --project-id lbubcoodmaimkadoessn --schema internal > src/types/generated/database.types.ts",
+    "sync-api": "cp ../ws-backend/openapi.yaml src/api/openapi.yaml",
+    "generate": "openapi-typescript src/api/openapi.yaml -o src/api/types.gen.ts"
   },
   "engines": {
     "node": ">=20.18.1"
@@ -24,6 +26,7 @@
     "dotenv": "^16.5.0",
     "minimist": "^1.2.8",
     "node-cache": "^5.1.2",
+    "openapi-typescript": "^7.13.0",
     "rimraf": "^6.0.1",
     "supabase": "^2.26.9",
     "typescript": "^5.8.3",
