@@ -116,10 +116,20 @@ export class HandleQuranRequest extends DiscordRequest {
         langs,
       });
     } else {
-      response = await wsApi.getQuran({
-        verses: query,
-        langs,
-      });
+      // If the query is a bare chapter number (e.g. "1", "18"), fetch the whole chapter.
+      const bareChapter = /^\d+$/.test(query) ? parseInt(query, 10) : NaN;
+      if (!isNaN(bareChapter) && bareChapter >= 1 && bareChapter <= 114) {
+        response = await wsApi.getQuran({
+          chapter_number_start: bareChapter,
+          chapter_number_end: bareChapter,
+          langs,
+        });
+      } else {
+        response = await wsApi.getQuran({
+          verses: query,
+          langs,
+        });
+      }
     }
 
     const chapters = response.chapters ?? [];
@@ -142,7 +152,10 @@ export class HandleQuranRequest extends DiscordRequest {
       for (const chapter of chapters) {
         for (const verse of chapter.verses ?? []) {
           const tr = verse.tr ?? {};
-          const raw = tr[primaryLang]?.hl ?? tr[primaryLang]?.tx ?? "";
+          const translation = tr[primaryLang];
+          if (!translation) continue;
+          const raw = (translation.hl || translation.tx) ?? "";
+          if (!raw) continue;
           verses.push(`**[${verse.vk}]** ${hlToMd(raw)}`);
         }
       }
