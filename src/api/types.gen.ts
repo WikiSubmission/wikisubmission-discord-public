@@ -13,7 +13,7 @@ export interface paths {
         };
         /**
          * List supported languages
-         * @description Returns all languages supported by the API, including code, name, and text direction.
+         * @description Returns all languages supported by the API, including the internal integer `id`, the ISO 639-1 `code` (used as a key in translation maps), the human-readable `name`, and the text `direction` (`ltr` or `rtl`). Use the `code` values from this endpoint as valid values for any `langs` or `word_langs` parameter throughout the API.
          */
         get: operations["getLanguages"];
         put?: never;
@@ -32,8 +32,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * fetches chapter Metadata
-         * @description Fetches list of quranic chapter titles, with Metadata and multilingual support
+         * Fetch chapter metadata
+         * @description Returns metadata for all 114 Quranic chapters: chapter number, verse count, revelation order, and the chapter title in the requested language. If `lang` is omitted the title is returned in the default language (English). Use this endpoint to build a chapter-picker UI or map chapter numbers to human-readable titles.
          */
         get: operations["getChapters"];
         put?: never;
@@ -52,8 +52,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * fetches appendix Metadata
-         * @description Fetches list of appendices, with Metadata and multilingual support
+         * Fetch appendix metadata
+         * @description Returns metadata for all Quranic appendices: a numeric code, a title, and a short snippet. If `lang` is omitted the title and snippet are returned in the default language (English).
          */
         get: operations["getAppendices"];
         put?: never;
@@ -73,7 +73,10 @@ export interface paths {
         };
         /**
          * Fetch a range of verses
-         * @description Returns a range of verses. Supports multiple languages simultaneously and optional word-by-word or root data.
+         * @description Returns a contiguous range of Quranic verses in one or more languages simultaneously. Two selection modes are supported:
+         *     **Range mode** — use `chapter_number_start`, `verse_start`, `verse_end`, and optionally `chapter_number_end` to specify a span.
+         *     **Compact mode** — use the `verses` parameter with a shorthand reference string. When `verses` is present it takes priority over all range params.
+         *     Optional word-level data (Arabic text, root, meaning) can be added with `include_words`, `include_root`, and `include_meaning`.
          */
         get: operations["getQuran"];
         put?: never;
@@ -93,7 +96,10 @@ export interface paths {
         };
         /**
          * Full-text search across the Quran
-         * @description Full-text search across verse content and chapter titles in all indexed languages. Supports fuzzy/partial matching via pg_trgm. Scope can be narrowed to verse translations or word-level text.
+         * @description Full-text search across verse translations and chapter titles in all indexed languages. Supports fuzzy / partial matching via `pg_trgm`.
+         *     **Scope `verses` (default)** — searches the translated text of each verse. Returns verses ranked by FTS relevance, optionally boosted by vector similarity when `semantic=true`.
+         *     **Scope `words`** — searches word-level Arabic / transliteration text. When `root` is also provided with `scope=words`, an exact root match is performed instead of FTS.
+         *     Results are paginated with `limit` / `offset`. Use the `total` field in the response envelope to calculate page count.
          */
         get: operations["search"];
         put?: never;
@@ -113,7 +119,7 @@ export interface paths {
         };
         /**
          * List all Bible books
-         * @description Returns all 66 Bible books with testament, chapter count, and verse count.
+         * @description Returns summary metadata for all 66 canonical Bible books: book number, book name, testament (`OT` or `NT`), chapter count, and total verse count. Use `bn` (book_number) from this list as the `book` parameter in `/bible`.
          */
         get: operations["getBibleBooks"];
         put?: never;
@@ -133,7 +139,9 @@ export interface paths {
         };
         /**
          * Fetch Bible verses by range
-         * @description Returns verses for a specific book and chapter/verse range. Supports multiple languages simultaneously.
+         * @description Returns verses for a specific Bible book and chapter/verse range in one or more languages simultaneously. The response groups verses by book and chapter, mirroring the `/quran` response structure.
+         *     To fetch an entire chapter, supply only `book` and `chapter_start` — the server defaults `verse_start` to 1 and `verse_end` to the last verse.
+         *     To fetch a single verse, supply `book`, `chapter_start`, `verse_start`, and set `verse_end` equal to `verse_start`.
          */
         get: operations["getBible"];
         put?: never;
@@ -153,7 +161,7 @@ export interface paths {
         };
         /**
          * Full-text search across the Bible
-         * @description Full-text search over Bible verse content and footnotes. Returns results grouped by book and chapter, ordered by relevance.
+         * @description Full-text search over Bible verse content and footnotes. Results are grouped by book and chapter, ordered by relevance score descending. Paginate with `limit` and `offset`; use the `total` field in the response envelope to compute total pages.
          */
         get: operations["searchBible"];
         put?: never;
@@ -171,7 +179,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List all music artists */
+        /**
+         * List all music artists
+         * @description Returns all artists in the music catalogue, ordered by `display_priority` ascending (lower number = shown first). Use `id` to filter albums and tracks by artist.
+         */
         get: operations["getMusicArtists"];
         put?: never;
         post?: never;
@@ -188,7 +199,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List all music categories */
+        /**
+         * List all music categories
+         * @description Returns all music categories (genres / themes), ordered by `display_priority` ascending. Use `id` to filter tracks by category.
+         */
         get: operations["getMusicCategories"];
         put?: never;
         post?: never;
@@ -205,7 +219,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List music albums */
+        /**
+         * List music albums
+         * @description Returns all albums, optionally filtered by artist. Albums are returned in no guaranteed order; sort client-side by `release_date` or `name` as needed.
+         */
         get: operations["getMusicAlbums"];
         put?: never;
         post?: never;
@@ -222,7 +239,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List music tracks */
+        /**
+         * List music tracks
+         * @description Returns tracks, with optional filters for artist, category, album, and featured status. Multiple filters can be combined — they are applied as AND conditions. Omit all filters to retrieve the full catalogue.
+         */
         get: operations["getMusicTracks"];
         put?: never;
         post?: never;
@@ -236,237 +256,578 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description Top-level envelope for both `/quran` (reader) and `/search` (FTS) responses. The `info` object describes the query parameters that were resolved; `chapters` contains the matching verses grouped by chapter. */
         QuranResponse: {
             info?: components["schemas"]["QuranResponseInfo"];
             chapters?: components["schemas"]["ChapterData"][];
         };
-        /** @description Metadata envelope. Reader fields (chapter_start/end, verse_start/end) are populated by /quran; search fields (q, total, limit, offset, scope) are populated by /search. */
+        /** @description Metadata envelope describing the resolved query. Reader fields (`chapter_start`, `chapter_end`, `verse_start`, `verse_end`) are populated by `/quran` and absent from `/search` responses. Search fields (`q`, `total`, `limit`, `offset`, `scope`) are populated by `/search` and absent from `/quran` responses. */
         QuranResponseInfo: {
-            /** @description Number of matching verses in this response page. */
+            /**
+             * @description Number of verses returned in this response page. For `/quran` this equals the total number of matching verses (no pagination); for `/search` this is the number of verses on the current page (≤ `limit`).
+             * @example 7
+             */
             result_count?: number;
+            /**
+             * @description Resolved first chapter of the query range (reader only). Reflects the `chapter_number_start` param after server validation.
+             * @example 2
+             */
             chapter_start?: number;
+            /**
+             * @description Resolved last chapter of the query range (reader only). Equal to `chapter_start` when no end chapter was requested.
+             * @example 2
+             */
             chapter_end?: number;
+            /**
+             * @description Resolved first verse of the query range (reader only). Defaults to 1 when the param was omitted.
+             * @example 1
+             */
             verse_start?: number;
+            /**
+             * @description Resolved last verse of the query range (reader only). Defaults to the final verse of the chapter when the param was omitted.
+             * @example 7
+             */
             verse_end?: number;
-            /** @description The search query as submitted. */
+            /**
+             * @description The search query as submitted by the client (search only).
+             * @example mercy of God
+             */
             q?: string;
-            /** @description Total matching results across all pages. */
+            /**
+             * @description Total number of matching verses across ALL pages (search only). Use together with `limit` and `offset` to calculate the total page count and navigate paginated results.
+             * @example 42
+             */
             total?: number;
+            /**
+             * @description Page size used for this response (search only).
+             * @example 20
+             */
             limit?: number;
+            /**
+             * @description Number of results skipped before this page (search only).
+             * @example 0
+             */
             offset?: number;
-            /** @description Search scope used (verses or words). */
+            /**
+             * @description Search scope that was applied (search only). `verses` means verse translation text was searched; `words` means word-level Arabic / transliteration text was searched.
+             * @example verses
+             */
             scope?: string;
         };
+        /** @description A single Quranic chapter with its matching verses. In reader mode all verses within the requested range are included. In search mode only verses that matched the query are included, and the `hits` and `tm` fields are populated. */
         ChapterData: {
-            /** @description chapter_number */
+            /**
+             * @description chapter_number — Quranic chapter number, 1-based (1–114).
+             * @example 1
+             */
             cn?: number;
+            /**
+             * @description Map of chapter titles keyed by ISO 639-1 language code. Only codes that were requested in `langs` (or all available codes for `/chapters`) are present.
+             * @example {
+             *       "en": "The Opening",
+             *       "ar": "الفاتحة"
+             *     }
+             */
             titles?: {
                 [key: string]: string;
             };
             verses?: components["schemas"]["VerseData"][];
-            /** @description Number of matching verses in this chapter (search only). */
+            /**
+             * @description Number of verses in this chapter that matched the search query (search only). Absent from `/quran` responses.
+             * @example 3
+             */
             hits?: number;
-            /** @description title_match — true when the chapter title matched the query (search only). */
+            /**
+             * @description title_match — `true` when the chapter title itself matched the search query, not just verse content (search only). Absent from `/quran` responses.
+             * @example false
+             */
             tm?: boolean;
         };
+        /** @description A single Quranic verse with its translations in the requested languages, and optionally word-by-word data. */
         VerseData: {
-            /** @description verse_index */
+            /**
+             * @description verse_index — 0-based position of this verse within its chapter. The first verse (`vi: 0`) is verse 1.
+             * @example 0
+             */
             vi?: number;
             /**
-             * @description verse_key
+             * @description verse_key — `chapter_number:verse_number` (1-based), e.g. `2:255` for Ayat al-Kursi or `1:1` for the Fatiha opening verse.
              * @example 1:1
              */
             vk?: string;
             /**
              * Format: float
-             * @description Relevance score (search only).
+             * @description Relevance score assigned by the FTS / semantic ranker (search only). Higher values indicate stronger relevance to the query. Absent from `/quran` responses.
+             * @example 0.87
              */
             sc?: number;
-            /** @description translations keyed by language code */
+            /** @description Translations keyed by ISO 639-1 language code. Only the codes requested via `langs` are present. Example: `{ "en": { ... }, "ar": { ... } }`. */
             tr?: {
                 [key: string]: components["schemas"]["TranslationContent"];
             };
-            /** @description words */
+            /** @description Word-by-word breakdown of the verse (present only when `include_words=true`). Each element represents one Arabic word in reading order. */
             w?: components["schemas"]["WordData"][];
         };
+        /** @description A single translation of a verse in one language. All short field names follow the minified key convention documented in the info section. */
         TranslationContent: {
-            /** @description lang_id */
+            /**
+             * @description lang_id — internal integer identifier for this language.
+             * @example 1
+             */
             li?: number;
-            /** @description lang_code */
+            /**
+             * @description lang_code — ISO 639-1 language code, e.g. `en`, `ar`, `fr`.
+             * @example en
+             */
             lc?: string;
             /**
-             * @description direction
+             * @description direction — text direction for this language. `ltr` for Latin-script languages (English, French, …); `rtl` for Arabic, Hebrew, Urdu, etc.
+             * @example ltr
              * @enum {string}
              */
             d?: "ltr" | "rtl";
-            /** @description text */
+            /**
+             * @description Full translation text of this verse in this language.
+             * @example In the name of God, the Gracious, the Merciful.
+             */
             tx?: string;
-            /** @description subtitle */
+            /**
+             * @description subtitle — chapter-level subtitle or section heading associated with this verse (Quran-specific, nullable). Typically appears only on verse 1 of a chapter.
+             * @example null
+             */
             s?: string | null;
-            /** @description footer */
+            /**
+             * @description footer — translator's footnote or clarification appended after the verse text (nullable). May contain cross-references or explanatory notes.
+             * @example null
+             */
             f?: string | null;
-            /** @description Highlighted snippet with <b>…</b> tags around matching terms (search only). */
+            /**
+             * @description Highlighted snippet with `<b>…</b>` tags wrapping the matched terms (search only). Suitable for rendering search result previews. `null` in `/quran` responses.
+             * @example In the name of <b>God</b>, the Gracious, the Merciful.
+             */
             hl?: string | null;
         };
+        /** @description Data for a single Arabic word within a verse. Returned only when `include_words=true`. Fields `r` and `m` require their respective `include_root` / `include_meaning` params to be `true`. */
         WordData: {
-            /** @description word_index */
+            /**
+             * @description word_index — 0-based position of this word within its verse. The first word of the verse is `wi: 0`.
+             * @example 0
+             */
             wi?: number;
-            /** @description global_index */
+            /**
+             * @description global_index — unique 1-based index of this word across the entire Quran (all chapters, all verses, in reading order).
+             * @example 1
+             */
             gi?: number;
-            /** @description word text keyed by language code */
+            /**
+             * @description Word text keyed by language code (e.g. `{ "ar": "بِسْمِ" }`). Only codes requested via `word_langs` are present. `null` if no `word_langs` were requested.
+             * @example {
+             *       "ar": "بِسْمِ"
+             *     }
+             */
             tx?: {
                 [key: string]: string;
             } | null;
-            /** @description Highlighted word text keyed by language code, with <b>…</b> tags (word search only). */
+            /**
+             * @description Highlighted word text keyed by language code, with `<b>` tags around the matched portion (word search only). `null` for non-search responses or when the word did not match.
+             * @example null
+             */
             hl?: {
                 [key: string]: string;
             } | null;
-            /** @description root */
+            /**
+             * @description root — Arabic root of the word (3–4 letter root form, e.g. `رحم` for words related to mercy). `null` unless `include_root=true`.
+             * @example سمو
+             */
             r?: string | null;
-            /** @description meaning */
+            /**
+             * @description meaning — English gloss / meaning of this specific word form (e.g. `"in the name of"`). `null` unless `include_meaning=true`.
+             * @example in the name of
+             */
             m?: string | null;
-            /** @description metadata */
+            /**
+             * @description Arbitrary metadata object containing morphological tags, grammar notes, or other word-level annotations. Structure may vary and should be treated as opaque unless documented separately.
+             * @example null
+             */
             meta?: Record<string, never> | null;
         };
+        /** @description A language supported by the API for translations and word text. */
         Language: {
+            /**
+             * @description Internal integer identifier. Used internally; prefer `code` for all API calls.
+             * @example 1
+             */
             id?: number;
+            /**
+             * @description ISO 639-1 language code. Use this value in `langs`, `word_langs`, and `lang` parameters throughout the API.
+             * @example en
+             */
             code?: string;
+            /**
+             * @description Human-readable language name in English.
+             * @example English
+             */
             name?: string;
-            /** @enum {string} */
+            /**
+             * @description Text direction for this language. `ltr` for left-to-right scripts; `rtl` for right-to-left scripts (Arabic, Hebrew, Urdu, Persian).
+             * @example ltr
+             * @enum {string}
+             */
             direction?: "ltr" | "rtl";
         };
+        /** @description List of metadata objects for all 114 Quranic chapters. */
         ChapterMetadata: components["schemas"]["Chapter"][];
+        /** @description Metadata for a single Quranic chapter. */
         Chapter: {
+            /**
+             * @description Chapter number, 1-based (1–114). Also known as Surah number.
+             * @example 1
+             */
             chapter_number?: number;
+            /**
+             * @description Total number of verses in this chapter.
+             * @example 7
+             */
             verse_count?: number;
+            /**
+             * @description Chronological order in which the chapter was revealed (1-based). Distinct from the canonical chapter_number ordering.
+             * @example 5
+             */
             revelation_order?: number;
+            /**
+             * @description Chapter title in the language requested via the `lang` parameter (or the default language if omitted).
+             * @example The Opening
+             */
             title?: string;
         };
+        /** @description List of metadata objects for all Quranic appendices. */
         AppendixMetadata: components["schemas"]["Appendix"][];
+        /** @description Metadata for a single Quranic appendix. */
         Appendix: {
+            /**
+             * @description Numeric code identifying the appendix.
+             * @example 1
+             */
             code?: number;
+            /**
+             * @description Title of the appendix in the requested language.
+             * @example God's Attributes
+             */
             title?: string;
+            /**
+             * @description Short introductory excerpt from the appendix body.
+             * @example The Quran teaches that God is One...
+             */
             snippet?: string;
         };
+        /** @description Top-level envelope for both `/bible` (reader) and `/bible/search` (FTS) responses. The `info` object describes the resolved query; `books` contains the matching verses grouped by book and chapter. */
         BibleResponse: {
             info?: components["schemas"]["BibleResponseInfo"];
             books?: components["schemas"]["BibleBookData"][];
         };
-        /** @description Metadata envelope. Reader fields (book, chapter_start/end, verse_start/end) are populated by /bible; search fields (q, total, limit, offset) are populated by /bible/search. */
+        /** @description Metadata envelope for Bible responses. Reader fields (`book`, `chapter_start`, `chapter_end`, `verse_start`, `verse_end`) are populated by `/bible`; search fields (`q`, `total`, `limit`, `offset`) are populated by `/bible/search`. */
         BibleResponseInfo: {
-            /** @description Number of matching verses in this response page. */
+            /**
+             * @description Number of verses returned in this response page.
+             * @example 12
+             */
             result_count?: number;
-            /** @description Requested book number (reader only). */
+            /**
+             * @description Requested book number (reader only). 1-based: 1 = Genesis, 40 = Matthew, 66 = Revelation.
+             * @example 40
+             */
             book?: number;
+            /**
+             * @description Resolved first chapter of the query range (reader only).
+             * @example 5
+             */
             chapter_start?: number;
+            /**
+             * @description Resolved last chapter of the query range (reader only).
+             * @example 5
+             */
             chapter_end?: number;
+            /**
+             * @description Resolved first verse of the query range (reader only).
+             * @example 1
+             */
             verse_start?: number;
+            /**
+             * @description Resolved last verse of the query range (reader only).
+             * @example 12
+             */
             verse_end?: number;
-            /** @description The search query as submitted (search only). */
+            /**
+             * @description The search query as submitted (search only).
+             * @example blessed are the meek
+             */
             q?: string;
-            /** @description Total matching results across all pages (search only). */
+            /**
+             * @description Total matching results across all pages (search only). Use with `limit` and `offset` for pagination.
+             * @example 15
+             */
             total?: number;
+            /**
+             * @description Page size used for this response (search only).
+             * @example 20
+             */
             limit?: number;
+            /**
+             * @description Number of results skipped before this page (search only).
+             * @example 0
+             */
             offset?: number;
         };
-        /** @description Summary metadata for one Bible book. */
+        /** @description Summary metadata for one Bible book, as returned by `/bible/books`. */
         BibleBook: {
-            /** @description book_number */
+            /**
+             * @description book_number — 1-based index: 1 = Genesis, 40 = Matthew, 66 = Revelation. Use this value as the `book` parameter in `/bible`.
+             * @example 40
+             */
             bn?: number;
-            /** @description book_name */
+            /**
+             * @description book_name — full English name of the book.
+             * @example Matthew
+             */
             bk?: string;
-            /** @description testament (OT or NT) */
+            /**
+             * @description testament — `OT` for Old Testament (books 1–39), `NT` for New Testament (books 40–66).
+             * @example NT
+             */
             t?: string;
-            /** @description chapter_count */
+            /**
+             * @description chapter_count — total number of chapters in this book.
+             * @example 28
+             */
             cc?: number;
-            /** @description verse_count */
+            /**
+             * @description verse_count — total number of verses in this book.
+             * @example 1071
+             */
             vc?: number;
         };
-        /** @description A Bible book with nested chapters, returned by /bible and /bible/search. */
+        /** @description A Bible book with nested chapters returned by `/bible` and `/bible/search`. In reader mode all chapters/verses in the requested range are included. In search mode only chapters/verses that matched the query are included. */
         BibleBookData: {
-            /** @description book_number */
+            /**
+             * @description book_number — 1-based book index (1 = Genesis … 66 = Revelation).
+             * @example 40
+             */
             bn?: number;
-            /** @description book_name */
+            /**
+             * @description book_name — full English name of the book.
+             * @example Matthew
+             */
             bk?: string;
-            /** @description testament (OT or NT) */
+            /**
+             * @description testament — `OT` for Old Testament (books 1–39), `NT` for New Testament (books 40–66).
+             * @example NT
+             */
             t?: string;
             chapters?: components["schemas"]["BibleChapterData"][];
         };
+        /** @description A single Bible chapter with its matching verses. */
         BibleChapterData: {
-            /** @description chapter_number (within the book) */
+            /**
+             * @description chapter_number — 1-based chapter number within the book.
+             * @example 5
+             */
             cn?: number;
-            /** @description Number of matching verses in this chapter (search only). */
+            /**
+             * @description Number of verses in this chapter that matched the search query (search only). Absent from `/bible` reader responses.
+             * @example 4
+             */
             hits?: number;
             verses?: components["schemas"]["BibleVerseData"][];
         };
+        /** @description A single Bible verse with its translations and optional relevance score. */
         BibleVerseData: {
-            /** @description verse_number */
+            /**
+             * @description verse_number — 1-based verse number within its chapter.
+             * @example 3
+             */
             vn?: number;
             /**
-             * @description verse_key — book_number:chapter_number:verse_number
-             * @example 1:1:1
+             * @description verse_key — `book_number:chapter_number:verse_number` (all 1-based), e.g. `40:5:3` for Matthew 5:3 or `1:1:1` for Genesis 1:1.
+             * @example 40:5:3
              */
             vk?: string;
             /**
              * Format: float
-             * @description Relevance score (search only).
+             * @description Relevance score assigned by the FTS ranker (search only). Higher values indicate stronger relevance. Absent from `/bible` responses.
+             * @example 0.92
              */
             sc?: number;
-            /** @description translations keyed by language code */
+            /** @description Translations keyed by ISO 639-1 language code. Only the codes requested via `langs` are present. */
             tr?: {
                 [key: string]: components["schemas"]["BibleTranslationContent"];
             };
         };
+        /** @description A single translation of a Bible verse in one language. Field names follow the same minified key convention as the Quran API. */
         BibleTranslationContent: {
-            /** @description lang_id */
+            /**
+             * @description lang_id — internal integer identifier for this language.
+             * @example 1
+             */
             li?: number;
-            /** @description lang_code */
+            /**
+             * @description lang_code — ISO 639-1 language code, e.g. `en`.
+             * @example en
+             */
             lc?: string;
             /**
-             * @description direction
+             * @description direction — text direction for this language. `ltr` for Latin scripts; `rtl` for Arabic / Hebrew.
+             * @example ltr
              * @enum {string}
              */
             d?: "ltr" | "rtl";
-            /** @description text */
+            /**
+             * @description Full translation text of this verse in this language.
+             * @example Blessed are the meek, for they will inherit the earth.
+             */
             tx?: string;
-            /** @description footer/footnote */
+            /**
+             * @description footer — short translator's footnote or clarification appended after the verse text (nullable).
+             * @example null
+             */
             f?: string | null;
-            /** @description theological footnotes */
+            /**
+             * @description Theological footnotes — array of extended commentary strings (nullable). Distinct from `f` (short inline footnote): `fn` entries are longer annotations, cross-references, or theological explanations associated with this verse.
+             * @example null
+             */
             fn?: string[] | null;
-            /** @description highlight with <b> tags (search only) */
+            /**
+             * @description Highlighted snippet with `<b>…</b>` tags wrapping matched terms (search only). `null` in `/bible` reader responses.
+             * @example Blessed are the <b>meek</b>, for they will inherit the earth.
+             */
             hl?: string | null;
         };
+        /** @description A music artist in the catalogue. */
         MusicArtist: {
+            /**
+             * @description Internal artist identifier. Use this as `artist_id` in albums and tracks filters.
+             * @example 1
+             */
             id: number;
+            /**
+             * @description Display name of the artist.
+             * @example Maher Zain
+             */
             name: string;
+            /**
+             * @description Short biography or description of the artist (nullable).
+             * @example Swedish-Lebanese singer and songwriter of Islamic music.
+             */
             description?: string | null;
+            /**
+             * @description URL to the artist's cover / profile image.
+             * @example https://cdn.wikisubmission.org/artists/maher-zain.jpg
+             */
             image_url: string;
+            /**
+             * @description Sort order for display; lower values appear first.
+             * @example 1
+             */
             display_priority: number;
         };
+        /** @description A music category (genre / theme) used to classify tracks. */
         MusicCategory: {
+            /**
+             * @description Internal category identifier. Use this as `category_id` in the tracks filter.
+             * @example 1
+             */
             id: number;
+            /**
+             * @description Display name of the category.
+             * @example Nasheed
+             */
             name: string;
+            /**
+             * @description Short description of the category (nullable).
+             * @example Vocal-only Islamic devotional music.
+             */
             description?: string | null;
+            /**
+             * @description Sort order for display; lower values appear first.
+             * @example 1
+             */
             display_priority: number;
         };
+        /** @description A music album in the catalogue. */
         MusicAlbum: {
+            /**
+             * @description Internal album identifier. Use this as `album_id` in the tracks filter.
+             * @example 1
+             */
             id: number;
+            /**
+             * @description Album title.
+             * @example Thank You Allah
+             */
             name: string;
+            /**
+             * @description ID of the artist this album belongs to. Matches `id` in `MusicArtist`.
+             * @example 1
+             */
             artist_id: number;
-            /** Format: date */
+            /**
+             * Format: date
+             * @description Album release date in ISO 8601 format (`YYYY-MM-DD`).
+             * @example 2009-01-01
+             */
             release_date: string;
+            /**
+             * @description Short description of the album (nullable).
+             * @example null
+             */
             description?: string | null;
         };
+        /** @description A single music track in the catalogue. */
         MusicTrack: {
+            /**
+             * @description Internal track identifier.
+             * @example 1
+             */
             id: number;
+            /**
+             * @description Track title.
+             * @example Thank You Allah
+             */
             name: string;
-            /** Format: date */
+            /**
+             * Format: date
+             * @description Track release date in ISO 8601 format (`YYYY-MM-DD`).
+             * @example 2009-01-01
+             */
             release_date: string;
+            /**
+             * @description Direct URL to the audio file or streaming resource.
+             * @example https://cdn.wikisubmission.org/music/thank-you-allah.mp3
+             */
             url: string;
+            /**
+             * @description ID of the artist. Matches `id` in `MusicArtist`.
+             * @example 1
+             */
             artist_id: number;
+            /**
+             * @description ID of the category (nullable). Matches `id` in `MusicCategory`.
+             * @example 1
+             */
             category_id?: number | null;
+            /**
+             * @description ID of the album (nullable). Matches `id` in `MusicAlbum`.
+             * @example 1
+             */
             album_id?: number | null;
+            /**
+             * @description Whether this track is hand-picked as featured. Featured tracks are highlighted in the UI and can be filtered with `featured=true`.
+             * @example false
+             */
             featured: boolean;
+            /**
+             * @description Full song lyrics (nullable). May contain newlines for line breaks.
+             * @example null
+             */
             lyrics?: string | null;
         };
     };
@@ -531,13 +892,27 @@ export interface components {
         };
     };
     parameters: {
-        /** @description Language codes for word-level text (subset of langs, e.g. only "ar"). */
+        /**
+         * @description Language codes for word-level text. Must be a subset of the `langs` array. Only words in these languages are included in the `tx` map of each `WordData` object. Typically set to `["ar"]` to include Arabic word text alongside an English translation.
+         * @example [
+         *       "ar"
+         *     ]
+         */
         WordLangsParam: string[];
-        /** @description Include word-by-word breakdown for each verse. */
+        /**
+         * @description When `true`, each verse includes a `w` array of `WordData` objects with per-word text (and optionally root / meaning). When `false` (default), the `w` array is entirely omitted from each verse, keeping the response compact.
+         * @example false
+         */
         IncludeWordsParam: boolean;
-        /** @description Include Arabic root for each word (requires include_words). */
+        /**
+         * @description When `true`, each `WordData` object includes the `r` field containing the Arabic root (3–4 letters). Requires `include_words=true`. Has no effect when `include_words=false`.
+         * @example false
+         */
         IncludeRootParam: boolean;
-        /** @description Include word meaning for each word (requires include_words). */
+        /**
+         * @description When `true`, each `WordData` object includes the `m` field containing an English gloss / meaning for the word. Requires `include_words=true`. Has no effect when `include_words=false`.
+         * @example false
+         */
         IncludeMeaningParam: boolean;
     };
     requestBodies: never;
@@ -570,6 +945,10 @@ export interface operations {
     getChapters: {
         parameters: {
             query?: {
+                /**
+                 * @description ISO 639-1 language code for the chapter title (e.g. `en`, `ar`, `fr`). Must be a code returned by `/languages`. Defaults to `en` when omitted.
+                 * @example en
+                 */
                 lang?: string;
             };
             header?: never;
@@ -597,6 +976,10 @@ export interface operations {
     getAppendices: {
         parameters: {
             query?: {
+                /**
+                 * @description ISO 639-1 language code for the appendix title and snippet (e.g. `en`, `ar`). Must be a code returned by `/languages`.
+                 * @example en
+                 */
                 lang?: string;
             };
             header?: never;
@@ -624,21 +1007,62 @@ export interface operations {
     getQuran: {
         parameters: {
             query: {
+                /**
+                 * @description First (or only) chapter to include, 1-based (1–114). When `chapter_number_end` is omitted, only this chapter is queried. Ignored when `verses` is provided.
+                 * @example 2
+                 */
                 chapter_number_start?: number;
+                /**
+                 * @description Last chapter to include (inclusive), 1-based (1–114). Must be ≥ `chapter_number_start`. Ignored when `verses` is provided.
+                 * @example 2
+                 */
                 chapter_number_end?: number;
+                /**
+                 * @description First verse to include within `chapter_number_start`, 1-based. Defaults to 1 when omitted. Ignored when `verses` is provided.
+                 * @example 1
+                 */
                 verse_start?: number;
+                /**
+                 * @description Last verse to include within `chapter_number_end` (or `chapter_number_start` if no end chapter), 1-based. Defaults to the last verse of the chapter when omitted. Ignored when `verses` is provided.
+                 * @example 5
+                 */
                 verse_end?: number;
-                /** @description Compact verse references. Single verse (1:1), range within a chapter (1:1-3), or comma-separated list (1:2,1:4-5,4:2). When present, takes priority over chapter_number_start/verse_start/verse_end. Max 300 verses. */
+                /**
+                 * @description Compact verse reference string. Takes priority over all chapter/verse range params when present. Supported formats:
+                 *     - Single verse: `1:1` - Range within a chapter: `1:1-7` - Comma-separated list: `1:2,2:255,2:285-286`
+                 *     Maximum 300 verses per request.
+                 * @example 2:255,2:285-286
+                 */
                 verses?: string;
-                /** @description Language codes to include (e.g. en, ar, fr). */
+                /**
+                 * @description One or more ISO 639-1 language codes to include in the response. Each code must be a value returned by `/languages`. Translations for each code appear inside every verse's `tr` map.
+                 * @example [
+                 *       "en",
+                 *       "ar"
+                 *     ]
+                 */
                 langs: string[];
-                /** @description Language codes for word-level text (subset of langs, e.g. only "ar"). */
+                /**
+                 * @description Language codes for word-level text. Must be a subset of the `langs` array. Only words in these languages are included in the `tx` map of each `WordData` object. Typically set to `["ar"]` to include Arabic word text alongside an English translation.
+                 * @example [
+                 *       "ar"
+                 *     ]
+                 */
                 word_langs?: components["parameters"]["WordLangsParam"];
-                /** @description Include word-by-word breakdown for each verse. */
+                /**
+                 * @description When `true`, each verse includes a `w` array of `WordData` objects with per-word text (and optionally root / meaning). When `false` (default), the `w` array is entirely omitted from each verse, keeping the response compact.
+                 * @example false
+                 */
                 include_words?: components["parameters"]["IncludeWordsParam"];
-                /** @description Include Arabic root for each word (requires include_words). */
+                /**
+                 * @description When `true`, each `WordData` object includes the `r` field containing the Arabic root (3–4 letters). Requires `include_words=true`. Has no effect when `include_words=false`.
+                 * @example false
+                 */
                 include_root?: components["parameters"]["IncludeRootParam"];
-                /** @description Include word meaning for each word (requires include_words). */
+                /**
+                 * @description When `true`, each `WordData` object includes the `m` field containing an English gloss / meaning for the word. Requires `include_words=true`. Has no effect when `include_words=false`.
+                 * @example false
+                 */
                 include_meaning?: components["parameters"]["IncludeMeaningParam"];
             };
             header?: never;
@@ -666,23 +1090,64 @@ export interface operations {
     search: {
         parameters: {
             query?: {
-                /** @description Search query (2–200 characters). Supports quoted phrases and exclusions. Optional when `root` is provided with scope=words. */
+                /**
+                 * @description Search query (2–200 characters). Supports quoted phrases and exclusions (e.g. `"mercy of God" -punishment`). Required unless `root` is provided with `scope=words`.
+                 * @example mercy of God
+                 */
                 q?: string;
-                /** @description Arabic root string (e.g. رحم). When provided with scope=words, performs an exact match on word_root instead of full-text search. Takes priority over q. */
+                /**
+                 * @description Arabic root string (3–4 letters, e.g. `رحم`). When provided with `scope=words`, performs an exact match on `word_root` instead of running FTS. Takes priority over `q`.
+                 * @example رحم
+                 */
                 root?: string;
-                /** @description Language codes to search in. Omit for all languages. */
+                /**
+                 * @description ISO 639-1 language codes to search in. When omitted, all indexed languages are searched simultaneously. Only affects which translation columns are queried — returned verse objects always include the translations for these codes.
+                 * @example [
+                 *       "en"
+                 *     ]
+                 */
                 langs?: string[];
-                /** @description Whether to search verse translations or word-level text. */
+                /**
+                 * @description Whether to search verse translations (`verses`) or word-level Arabic / transliteration text (`words`). Defaults to `verses`.
+                 * @example verses
+                 */
                 scope?: "verses" | "words";
+                /**
+                 * @description Maximum number of verses to return per page (1–100). Defaults to 20.
+                 * @example 20
+                 */
                 limit?: number;
+                /**
+                 * @description Number of results to skip before returning the page. Use with `limit` and the `total` field for pagination.
+                 * @example 0
+                 */
                 offset?: number;
-                /** @description Language codes for word-level text (subset of langs, e.g. only "ar"). */
+                /**
+                 * @description Enable hybrid semantic search (FTS + vector RRF fusion) when the server has an embedding model configured. Defaults to `true` when `OPENAI_API_KEY` is set, otherwise `false`. Set to `false` to force pure keyword FTS regardless of server configuration.
+                 * @example true
+                 */
+                semantic?: boolean;
+                /**
+                 * @description Language codes for word-level text. Must be a subset of the `langs` array. Only words in these languages are included in the `tx` map of each `WordData` object. Typically set to `["ar"]` to include Arabic word text alongside an English translation.
+                 * @example [
+                 *       "ar"
+                 *     ]
+                 */
                 word_langs?: components["parameters"]["WordLangsParam"];
-                /** @description Include word-by-word breakdown for each verse. */
+                /**
+                 * @description When `true`, each verse includes a `w` array of `WordData` objects with per-word text (and optionally root / meaning). When `false` (default), the `w` array is entirely omitted from each verse, keeping the response compact.
+                 * @example false
+                 */
                 include_words?: components["parameters"]["IncludeWordsParam"];
-                /** @description Include Arabic root for each word (requires include_words). */
+                /**
+                 * @description When `true`, each `WordData` object includes the `r` field containing the Arabic root (3–4 letters). Requires `include_words=true`. Has no effect when `include_words=false`.
+                 * @example false
+                 */
                 include_root?: components["parameters"]["IncludeRootParam"];
-                /** @description Include word meaning for each word (requires include_words). */
+                /**
+                 * @description When `true`, each `WordData` object includes the `m` field containing an English gloss / meaning for the word. Requires `include_words=true`. Has no effect when `include_words=false`.
+                 * @example false
+                 */
                 include_meaning?: components["parameters"]["IncludeMeaningParam"];
             };
             header?: never;
@@ -729,17 +1194,37 @@ export interface operations {
     getBible: {
         parameters: {
             query: {
-                /** @description Book number (1 = Genesis, 40 = Matthew, …, 66 = Revelation). */
+                /**
+                 * @description 1-based Bible book number. 1 = Genesis, 40 = Matthew, 66 = Revelation. Use `/bible/books` to retrieve the full list of book numbers and names.
+                 * @example 40
+                 */
                 book: number;
-                /** @description First chapter to include (1-based, within the book). */
+                /**
+                 * @description First chapter to include, 1-based and within the bounds of the requested book. Use `/bible/books` to find each book's `cc` (chapter_count).
+                 * @example 5
+                 */
                 chapter_start: number;
-                /** @description Last chapter to include. Defaults to chapter_start. */
+                /**
+                 * @description Last chapter to include (inclusive), 1-based. Must be ≥ `chapter_start`. Defaults to `chapter_start` when omitted (single chapter).
+                 * @example 5
+                 */
                 chapter_end?: number;
-                /** @description First verse to include. Defaults to 1. */
+                /**
+                 * @description First verse to include within `chapter_start`, 1-based. Defaults to 1 (beginning of the chapter) when omitted.
+                 * @example 1
+                 */
                 verse_start?: number;
-                /** @description Last verse to include. Defaults to end of chapter. */
+                /**
+                 * @description Last verse to include within `chapter_end` (or `chapter_start`), 1-based. Defaults to the last verse of the chapter when omitted.
+                 * @example 12
+                 */
                 verse_end?: number;
-                /** @description Language codes to include (e.g. en). */
+                /**
+                 * @description One or more ISO 639-1 language codes to include. Each code must be returned by `/languages`. Currently the primary supported code is `en` (English).
+                 * @example [
+                 *       "en"
+                 *     ]
+                 */
                 langs: string[];
             };
             header?: never;
@@ -764,11 +1249,27 @@ export interface operations {
     searchBible: {
         parameters: {
             query: {
-                /** @description Search query (2–200 characters). */
+                /**
+                 * @description Search query (2–200 characters). Matched against verse text and footnotes using PostgreSQL full-text search. Supports quoted phrases.
+                 * @example blessed are the meek
+                 */
                 q: string;
-                /** @description Language codes to search in. Omit for all languages. */
+                /**
+                 * @description ISO 639-1 language codes to search in. When omitted, all indexed languages are searched. Currently the primary supported code is `en`.
+                 * @example [
+                 *       "en"
+                 *     ]
+                 */
                 langs?: string[];
+                /**
+                 * @description Maximum number of verses to return per page (1–100). Defaults to 20.
+                 * @example 20
+                 */
                 limit?: number;
+                /**
+                 * @description Number of results to skip before returning the page. Use with `limit` and `total` for pagination.
+                 * @example 0
+                 */
                 offset?: number;
             };
             header?: never;
@@ -835,7 +1336,10 @@ export interface operations {
     getMusicAlbums: {
         parameters: {
             query?: {
-                /** @description Filter by artist ID. */
+                /**
+                 * @description Filter results to albums belonging to this artist. Must be an `id` returned by `/music/artists`. Omit to return all albums.
+                 * @example 1
+                 */
                 artist_id?: number;
             };
             header?: never;
@@ -859,13 +1363,25 @@ export interface operations {
     getMusicTracks: {
         parameters: {
             query?: {
-                /** @description Filter by artist ID. */
+                /**
+                 * @description Return only tracks by this artist. Must be an `id` returned by `/music/artists`.
+                 * @example 1
+                 */
                 artist_id?: number;
-                /** @description Filter by category ID. */
+                /**
+                 * @description Return only tracks in this category. Must be an `id` returned by `/music/categories`.
+                 * @example 2
+                 */
                 category_id?: number;
-                /** @description Filter by album ID. */
+                /**
+                 * @description Return only tracks from this album. Must be an `id` returned by `/music/albums`.
+                 * @example 3
+                 */
                 album_id?: number;
-                /** @description Filter to featured tracks only. */
+                /**
+                 * @description When `true`, return only featured (hand-picked) tracks. When omitted or `false`, featured and non-featured tracks are both included.
+                 * @example true
+                 */
                 featured?: boolean;
             };
             header?: never;
