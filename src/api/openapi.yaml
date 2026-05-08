@@ -65,7 +65,7 @@ servers:
     description: Development server
   - url: https://ws-backend.wikisubmission.org/api/v1
     description: Production Server
-  - url: http://ws-backend.railway.internal/api/v1
+  - url: http://ws-backend.internal/api/v1
     description: Internal Production Server
   - url: https://ws-backend-vc.wikisubmission.org/api/v1
     description: railway, temp test
@@ -84,6 +84,16 @@ tags:
       Public read-only endpoints for music — artists, categories, albums, and
       tracks. All lists are unfiltered by default; use query parameters to narrow
       results.
+  - name: Roots
+    description: >
+      Quranic Arabic roots concordance. Provides a paginated index of roots,
+      per-root detail with derived surface forms, and per-root verse occurrences.
+      Backed by `word_text.word_root` aggregated into a materialized view.
+  - name: Communities
+    description: >
+      Online and physical community directory sourced from the Sanity content
+      lake. Reads are cached server-side and invalidated by webhook on
+      document changes.
 
 paths:
   /languages:
@@ -228,11 +238,12 @@ paths:
         - name: verse_start
           in: query
           description: >
-            First verse to include within `chapter_number_start`, 1-based.
-            Defaults to 1 when omitted. Ignored when `verses` is provided.
+            First verse to include within `chapter_number_start`. Use `0` for
+            the Basmallah; `1` and above for numbered verses. Defaults to 1
+            when omitted. Ignored when `verses` is provided.
           schema:
             type: integer
-            minimum: 1
+            minimum: 0
           example: 1
         - name: verse_end
           in: query
@@ -407,6 +418,171 @@ paths:
           $ref: "#/components/responses/InternalServerErrror"
         '501':
           $ref: '#/components/responses/NotImplementedError'
+
+  # --- ROOTS API ---
+
+  /roots:
+    get:
+      tags: [Roots]
+      operationId: getRoots
+      summary: Paginated roots index
+      description: >
+        Returns a paginated list of distinct Arabic roots aggregated from
+        `word_text.word_root`, with per-root occurrence counts and a
+        server-computed Latin Buckwalter transliteration (`tr`).
+
+        Supports three sort modes (`frequency`, `abjadi`, `reverse`) and an
+        optional Arabic prefix filter. Use `limit` / `offset` for pagination;
+        `total` reflects the filtered universe so page count is consistent.
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: >
+            Arabic prefix filter against root letters. The frontend MUST send
+            space-separated Arabic letters matching the storage form (e.g.
+            `ك ت` or `ك ت ب`); Latin or Buckwalter input is not accepted on
+            the server.
+          schema:
+            type: string
+          example: "ك ت"
+        - name: sort
+          in: query
+          required: false
+          description: >
+            Ordering mode. `frequency` orders by descending occurrence count
+            (most-attested first). `abjadi` orders by classical abjadi rank
+            (composite over the first three letters). `reverse` is the inverse
+            abjadi ordering.
+          schema:
+            type: string
+            enum: [frequency, abjadi, reverse]
+            default: frequency
+          example: frequency
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Default 50. No upper bound — paginate via `offset` for large pulls.
+          schema:
+            type: integer
+            minimum: 1
+            default: 50
+          example: 50
+        - name: offset
+          in: query
+          required: false
+          description: Number of items to skip before returning the page.
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          example: 0
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RootsIndexResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerErrror'
+
+  /roots/{letters}:
+    get:
+      tags: [Roots]
+      operationId: getRootDetail
+      summary: Full root record
+      description: >
+        Returns full metadata for a single root: count, transliteration,
+        distinct derived surface forms (`dv`), and the first 20 occurrences
+        (`oc`). Use `/roots/{letters}/occurrences` to paginate beyond the
+        first 20.
+      parameters:
+        - name: letters
+          in: path
+          required: true
+          description: >
+            URL-encoded space-separated Arabic letters of the root (e.g.
+            `%D9%83%20%D8%AA%20%D8%A8` for `ك ت ب`). Must match the storage
+            form exactly.
+          schema:
+            type: string
+          example: "ك ت ب"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RootRecord'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerErrror'
+
+  /roots/{letters}/occurrences:
+    get:
+      tags: [Roots]
+      operationId: getRootOccurrences
+      summary: Paginated occurrences for a single root
+      description: >
+        Returns paginated verse occurrences for the given root, ordered by
+        canonical reading order (`global_index`). Use `total` for page count.
+      parameters:
+        - name: letters
+          in: path
+          required: true
+          description: >
+            URL-encoded space-separated Arabic letters of the root.
+          schema:
+            type: string
+          example: "ك ت ب"
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Default 50. No upper bound.
+          schema:
+            type: integer
+            minimum: 1
+            default: 50
+          example: 50
+        - name: offset
+          in: query
+          required: false
+          description: Number of occurrences to skip before returning the page.
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          example: 0
+        - name: surface
+          in: query
+          required: false
+          description: >
+            Optional Arabic surface form filter. When provided, narrows the
+            result set to occurrences where the matched word equals this exact
+            string (used by the Word Lab "click derivative chip" flow). The
+            `total` field reflects the filtered universe.
+          schema:
+            type: string
+          example: "كِتَاب"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OccurrencesResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerErrror'
 
   # --- BIBLE API ---
 
@@ -716,6 +892,57 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/MusicTrack'
+        '500':
+          $ref: '#/components/responses/InternalServerErrror'
+
+  /communities:
+    get:
+      tags: [Communities]
+      operationId: getCommunities
+      summary: List communities (online and physical)
+      description: >
+        Returns active community entries authored in Sanity (online communities
+        on platforms like Discord/Telegram, plus physical meet-up locations).
+        Backed by the Sanity content lake; results are cached server-side and
+        invalidated by webhook on document changes.
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          description: Filter by community kind.
+          schema:
+            type: string
+            enum: [online, physical]
+          example: online
+        - name: language
+          in: query
+          required: false
+          description: ISO 639-1 language code of the community.
+          schema:
+            type: string
+          example: en
+        - name: country
+          in: query
+          required: false
+          description: ISO 3166-1 alpha-2 country code (physical communities only).
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 2
+          example: US
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Community'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '502':
+          $ref: '#/components/responses/BadGateway'
         '500':
           $ref: '#/components/responses/InternalServerErrror'
 
@@ -1060,6 +1287,195 @@ components:
             notes, or other word-level annotations. Structure may vary and
             should be treated as opaque unless documented separately.
           example: null
+
+    # -----------------------------------------------------------------------
+    # Roots concordance schemas
+    # -----------------------------------------------------------------------
+    RootSummary:
+      type: object
+      description: >
+        Compact record for one Quranic Arabic root, returned by the index
+        endpoint. `r` is the storage form (space-separated Arabic letters);
+        `tr` is the server-computed Latin Buckwalter transliteration joined
+        with hyphens (e.g. `k-t-b`). `s` is reserved for an editorial sense
+        gloss and is always `null` until Phase 2 morphology data lands.
+      required: [r, tr, c]
+      properties:
+        r:
+          type: string
+          description: Root letters, space-separated Arabic (storage form).
+          example: "ك ت ب"
+        tr:
+          type: string
+          description: >
+            Latin Buckwalter transliteration of the root, lowercase letters
+            joined with `-`. Computed server-side from `r`.
+          example: "k-t-b"
+        s:
+          type: string
+          nullable: true
+          description: >
+            Editorial sense gloss for this root (Phase 2; always `null` for
+            now).
+          example: null
+        c:
+          type: integer
+          description: Total occurrence count of this root across the corpus.
+          example: 319
+
+    RootRecord:
+      description: >
+        Full record for one root, including derived surface forms (`dv`) and
+        the first 20 verse occurrences (`oc`). Paginate beyond 20 via
+        `/roots/{letters}/occurrences`.
+      allOf:
+        - $ref: '#/components/schemas/RootSummary'
+        - type: object
+          properties:
+            dv:
+              type: array
+              description: >
+                Distinct derived surface forms of this root, capped at 20 and
+                ordered by descending count.
+              items:
+                $ref: '#/components/schemas/Derivative'
+            oc:
+              type: array
+              description: >
+                First 20 verse occurrences of this root, ordered by canonical
+                reading order (`global_index`).
+              items:
+                $ref: '#/components/schemas/Occurrence'
+            mp:
+              type: string
+              nullable: true
+              description: >
+                Morphology note for the root (Phase 2; always `null` for now).
+              example: null
+            m:
+              type: string
+              nullable: true
+              description: >
+                Per-root meaning string. The `meaning` column in `word_text` is
+                denormalized — every surface form sharing this root carries the
+                same string. The server returns one canonical row's value here.
+                Senses are typically separated by `;`. May be `null` when no
+                English meaning row exists for the root.
+              example: "to write; note; record; collect; book; writing; scripture; decree; letter"
+
+    Derivative:
+      type: object
+      description: >
+        A distinct surface form (token spelling) of a root, with its
+        occurrence count. `tr` is the Latin transliteration of the surface
+        form, sourced from `word_text` rows tagged with the `tl` language
+        (most-common value when multiple readings exist). `en` and `p` (POS)
+        remain reserved for Phase 2 morphology data and are still `null`.
+      required: [ar, c]
+      properties:
+        ar:
+          type: string
+          description: Surface form (Arabic word as it appears in the corpus).
+          example: "كِتَاب"
+        tr:
+          type: string
+          nullable: true
+          description: >
+            Latin transliteration of the surface form (e.g. "kitāb"). Drawn
+            from the per-word `tl` entry in `word_text`. May be `null` if no
+            transliteration row exists for that word.
+          example: "kitāb"
+        en:
+          type: string
+          nullable: true
+          description: English gloss for this surface form (Phase 2; always `null`).
+          example: null
+        c:
+          type: integer
+          description: Number of occurrences of this exact surface form.
+          example: 56
+        p:
+          type: string
+          nullable: true
+          enum: [V, N, ADJ, PASS, PRO, NEG, P, REL]
+          description: Part-of-speech tag (Phase 2; always `null`).
+          example: null
+
+    Occurrence:
+      type: object
+      description: >
+        One verse occurrence of a root. `vk` is the verse_key
+        (`chapter_number:verse_number`); `ar` is the full Arabic verse text;
+        `en` is the primary English translation when available; `hl` is the
+        exact surface form to highlight inside `ar` on the client.
+      required: [vk, ar]
+      properties:
+        vk:
+          type: string
+          description: verse_key — `chapter_number:verse_number`, both 1-based.
+          example: "2:282"
+        ar:
+          type: string
+          description: Full Arabic verse text.
+          example: "يَا أَيُّهَا الَّذِينَ آمَنُوا إِذَا تَدَايَنتُم بِدَيْنٍ ..."
+        en:
+          type: string
+          nullable: true
+          description: Primary English translation of the verse (nullable).
+          example: "O you who believe, when you transact a loan ..."
+        hl:
+          type: string
+          nullable: true
+          description: >
+            Surface form (matched word) to highlight inside `ar`. Best-effort:
+            the client may need to handle diacritics when locating the
+            substring.
+          example: "كِتَاب"
+        tl:
+          type: string
+          nullable: true
+          description: >
+            Latin transliteration of the matched surface form (`hl`). Drawn
+            from the per-word `tl` entry in `word_text`. May be `null` if no
+            transliteration row exists for that word.
+          example: "kitāb"
+        wi:
+          type: integer
+          nullable: true
+          description: >
+            1-based word index of the matched word inside its verse. Lets the
+            client highlight the exact token without resorting to substring
+            matching (which mis-targets short surface forms like `مِن` that
+            embed inside longer words like `مُؤْمِن`).
+          example: 4
+
+    RootsIndexResponse:
+      type: object
+      description: Paginated index of roots returned by `/roots`.
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RootSummary'
+        total:
+          type: integer
+          description: Total number of distinct roots matching the optional `q` filter.
+          example: 1689
+
+    OccurrencesResponse:
+      type: object
+      description: Paginated occurrences for a single root.
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Occurrence'
+        total:
+          type: integer
+          description: Total number of occurrences of this root in the corpus.
+          example: 319
 
     Language:
       type: object
@@ -1493,6 +1909,99 @@ components:
           description: Full song lyrics (nullable). May contain newlines for line breaks.
           example: null
 
+    # -----------------------------------------------------------------------
+    # Communities (Sanity-backed)
+    # -----------------------------------------------------------------------
+    GeoPoint:
+      type: object
+      description: Latitude/longitude pair for a physical community.
+      properties:
+        lat:
+          type: number
+          format: double
+          example: 36.7525
+        lng:
+          type: number
+          format: double
+          example: 3.0420
+
+    Community:
+      type: object
+      description: >
+        A community entry sourced from Sanity. The `kind` discriminator
+        determines which optional fields are populated: `online` communities
+        carry `platform`/`url`/`inviteCode`/`memberCount`; `physical`
+        communities carry `address`/`city`/`country`/`geo`/`contactEmail`/
+        `contactPhone`/`meetingSchedule`. The `imageUrl`, when present, points
+        at the ws-backend image proxy and not directly at Sanity's CDN.
+      required: [_id, kind, name, isActive]
+      properties:
+        _id:
+          type: string
+          description: Sanity document ID.
+          example: drafts.community-foo
+        kind:
+          type: string
+          enum: [online, physical]
+          example: online
+        name:
+          type: string
+          example: Submitters Discord
+        slug:
+          type: string
+          example: submitters-discord
+        language:
+          type: string
+          description: ISO 639-1 language code.
+          example: en
+        description:
+          type: string
+        imageUrl:
+          type: string
+          description: >
+            Proxied image URL routed through `/sanity/image/...`. Preserves
+            Sanity's image transform query string when present.
+          example: /sanity/image/abc123-1024x768.jpg
+        tags:
+          type: array
+          items:
+            type: string
+        isActive:
+          type: boolean
+          example: true
+        # Online-only
+        platform:
+          type: string
+          enum: [discord, telegram, whatsapp, facebook, x, youtube, other]
+          example: discord
+        url:
+          type: string
+          format: uri
+        inviteCode:
+          type: string
+        memberCount:
+          type: integer
+          minimum: 0
+        # Physical-only
+        address:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+          description: ISO 3166-1 alpha-2 country code.
+          minLength: 2
+          maxLength: 2
+        geo:
+          $ref: '#/components/schemas/GeoPoint'
+        contactEmail:
+          type: string
+          format: email
+        contactPhone:
+          type: string
+        meetingSchedule:
+          type: string
+
   responses:
     Conflict:
       description: >
@@ -1557,3 +2066,16 @@ components:
               code:
                 type: string
                 example: "NOT_IMPLEMENTED"
+    BadGateway:
+      description: >
+        The upstream content source (Sanity) returned an error or was
+        unreachable. The response is structurally valid but the request could
+        not be fulfilled.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [message]
+            properties:
+              message:
+                type: string

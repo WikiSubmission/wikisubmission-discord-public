@@ -7,6 +7,7 @@ import {
 import { WSlashCommand } from "../types/w-slash-command";
 import { wsApi } from "../utils/ws-api";
 import { cachePageData } from "../utils/cache-interaction";
+import { normalizeQuranVerseQuery } from "../utils/normalize-quran-verse-query";
 import type { components } from "../api/types.gen";
 
 const FOOTER = "Quran: The Final Testament";
@@ -70,7 +71,7 @@ export default function command(): WSlashCommand {
     options: [
       {
         name: "verse",
-        description: "Verse #:#",
+        description: "Verse #:# or # #",
         required: true,
         type: ApplicationCommandOptionType.String,
         name_localizations: {
@@ -88,7 +89,9 @@ export default function command(): WSlashCommand {
       },
     ],
     execute: async (interaction) => {
-      const query = `${interaction.options.get("verse")?.value?.toString() || "1:1"}`.trim();
+      const query = normalizeQuranVerseQuery(
+        `${interaction.options.get("verse")?.value?.toString() || "1:1"}`
+      );
       const includeMeanings =
         interaction.options.get("with-meanings")?.value === true;
 

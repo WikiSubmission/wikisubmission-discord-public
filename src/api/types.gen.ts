@@ -110,6 +110,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/roots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Paginated roots index
+         * @description Returns a paginated list of distinct Arabic roots aggregated from `word_text.word_root`, with per-root occurrence counts and a server-computed Latin Buckwalter transliteration (`tr`).
+         *     Supports three sort modes (`frequency`, `abjadi`, `reverse`) and an optional Arabic prefix filter. Use `limit` / `offset` for pagination; `total` reflects the filtered universe so page count is consistent.
+         */
+        get: operations["getRoots"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/roots/{letters}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Full root record
+         * @description Returns full metadata for a single root: count, transliteration, distinct derived surface forms (`dv`), and the first 20 occurrences (`oc`). Use `/roots/{letters}/occurrences` to paginate beyond the first 20.
+         */
+        get: operations["getRootDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/roots/{letters}/occurrences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Paginated occurrences for a single root
+         * @description Returns paginated verse occurrences for the given root, ordered by canonical reading order (`global_index`). Use `total` for page count.
+         */
+        get: operations["getRootOccurrences"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/bible/books": {
         parameters: {
             query?: never;
@@ -244,6 +305,26 @@ export interface paths {
          * @description Returns tracks, with optional filters for artist, category, album, and featured status. Multiple filters can be combined — they are applied as AND conditions. Omit all filters to retrieve the full catalogue.
          */
         get: operations["getMusicTracks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/communities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List communities (online and physical)
+         * @description Returns active community entries authored in Sanity (online communities on platforms like Discord/Telegram, plus physical meet-up locations). Backed by the Sanity content lake; results are cached server-side and invalidated by webhook on document changes.
+         */
+        get: operations["getCommunities"];
         put?: never;
         post?: never;
         delete?: never;
@@ -450,6 +531,126 @@ export interface components {
              * @example null
              */
             meta?: Record<string, never> | null;
+        };
+        /** @description Compact record for one Quranic Arabic root, returned by the index endpoint. `r` is the storage form (space-separated Arabic letters); `tr` is the server-computed Latin Buckwalter transliteration joined with hyphens (e.g. `k-t-b`). `s` is reserved for an editorial sense gloss and is always `null` until Phase 2 morphology data lands. */
+        RootSummary: {
+            /**
+             * @description Root letters, space-separated Arabic (storage form).
+             * @example ك ت ب
+             */
+            r: string;
+            /**
+             * @description Latin Buckwalter transliteration of the root, lowercase letters joined with `-`. Computed server-side from `r`.
+             * @example k-t-b
+             */
+            tr: string;
+            /**
+             * @description Editorial sense gloss for this root (Phase 2; always `null` for now).
+             * @example null
+             */
+            s?: string | null;
+            /**
+             * @description Total occurrence count of this root across the corpus.
+             * @example 319
+             */
+            c: number;
+        };
+        /** @description Full record for one root, including derived surface forms (`dv`) and the first 20 verse occurrences (`oc`). Paginate beyond 20 via `/roots/{letters}/occurrences`. */
+        RootRecord: components["schemas"]["RootSummary"] & {
+            /** @description Distinct derived surface forms of this root, capped at 20 and ordered by descending count. */
+            dv?: components["schemas"]["Derivative"][];
+            /** @description First 20 verse occurrences of this root, ordered by canonical reading order (`global_index`). */
+            oc?: components["schemas"]["Occurrence"][];
+            /**
+             * @description Morphology note for the root (Phase 2; always `null` for now).
+             * @example null
+             */
+            mp?: string | null;
+            /**
+             * @description Per-root meaning string. The `meaning` column in `word_text` is denormalized — every surface form sharing this root carries the same string. The server returns one canonical row's value here. Senses are typically separated by `;`. May be `null` when no English meaning row exists for the root.
+             * @example to write; note; record; collect; book; writing; scripture; decree; letter
+             */
+            m?: string | null;
+        };
+        /** @description A distinct surface form (token spelling) of a root, with its occurrence count. `tr` is the Latin transliteration of the surface form, sourced from `word_text` rows tagged with the `tl` language (most-common value when multiple readings exist). `en` and `p` (POS) remain reserved for Phase 2 morphology data and are still `null`. */
+        Derivative: {
+            /**
+             * @description Surface form (Arabic word as it appears in the corpus).
+             * @example كِتَاب
+             */
+            ar: string;
+            /**
+             * @description Latin transliteration of the surface form (e.g. "kitāb"). Drawn from the per-word `tl` entry in `word_text`. May be `null` if no transliteration row exists for that word.
+             * @example kitāb
+             */
+            tr?: string | null;
+            /**
+             * @description English gloss for this surface form (Phase 2; always `null`).
+             * @example null
+             */
+            en?: string | null;
+            /**
+             * @description Number of occurrences of this exact surface form.
+             * @example 56
+             */
+            c: number;
+            /**
+             * @description Part-of-speech tag (Phase 2; always `null`).
+             * @example null
+             * @enum {string|null}
+             */
+            p?: "V" | "N" | "ADJ" | "PASS" | "PRO" | "NEG" | "P" | "REL" | null;
+        };
+        /** @description One verse occurrence of a root. `vk` is the verse_key (`chapter_number:verse_number`); `ar` is the full Arabic verse text; `en` is the primary English translation when available; `hl` is the exact surface form to highlight inside `ar` on the client. */
+        Occurrence: {
+            /**
+             * @description verse_key — `chapter_number:verse_number`, both 1-based.
+             * @example 2:282
+             */
+            vk: string;
+            /**
+             * @description Full Arabic verse text.
+             * @example يَا أَيُّهَا الَّذِينَ آمَنُوا إِذَا تَدَايَنتُم بِدَيْنٍ ...
+             */
+            ar: string;
+            /**
+             * @description Primary English translation of the verse (nullable).
+             * @example O you who believe, when you transact a loan ...
+             */
+            en?: string | null;
+            /**
+             * @description Surface form (matched word) to highlight inside `ar`. Best-effort: the client may need to handle diacritics when locating the substring.
+             * @example كِتَاب
+             */
+            hl?: string | null;
+            /**
+             * @description Latin transliteration of the matched surface form (`hl`). Drawn from the per-word `tl` entry in `word_text`. May be `null` if no transliteration row exists for that word.
+             * @example kitāb
+             */
+            tl?: string | null;
+            /**
+             * @description 1-based word index of the matched word inside its verse. Lets the client highlight the exact token without resorting to substring matching (which mis-targets short surface forms like `مِن` that embed inside longer words like `مُؤْمِن`).
+             * @example 4
+             */
+            wi?: number | null;
+        };
+        /** @description Paginated index of roots returned by `/roots`. */
+        RootsIndexResponse: {
+            items: components["schemas"]["RootSummary"][];
+            /**
+             * @description Total number of distinct roots matching the optional `q` filter.
+             * @example 1689
+             */
+            total: number;
+        };
+        /** @description Paginated occurrences for a single root. */
+        OccurrencesResponse: {
+            items: components["schemas"]["Occurrence"][];
+            /**
+             * @description Total number of occurrences of this root in the corpus.
+             * @example 319
+             */
+            total: number;
         };
         /** @description A language supported by the API for translations and word text. */
         Language: {
@@ -830,6 +1031,68 @@ export interface components {
              */
             lyrics?: string | null;
         };
+        /** @description Latitude/longitude pair for a physical community. */
+        GeoPoint: {
+            /**
+             * Format: double
+             * @example 36.7525
+             */
+            lat?: number;
+            /**
+             * Format: double
+             * @example 3.042
+             */
+            lng?: number;
+        };
+        /** @description A community entry sourced from Sanity. The `kind` discriminator determines which optional fields are populated: `online` communities carry `platform`/`url`/`inviteCode`/`memberCount`; `physical` communities carry `address`/`city`/`country`/`geo`/`contactEmail`/ `contactPhone`/`meetingSchedule`. The `imageUrl`, when present, points at the ws-backend image proxy and not directly at Sanity's CDN. */
+        Community: {
+            /**
+             * @description Sanity document ID.
+             * @example drafts.community-foo
+             */
+            _id: string;
+            /**
+             * @example online
+             * @enum {string}
+             */
+            kind: "online" | "physical";
+            /** @example Submitters Discord */
+            name: string;
+            /** @example submitters-discord */
+            slug?: string;
+            /**
+             * @description ISO 639-1 language code.
+             * @example en
+             */
+            language?: string;
+            description?: string;
+            /**
+             * @description Proxied image URL routed through `/sanity/image/...`. Preserves Sanity's image transform query string when present.
+             * @example /sanity/image/abc123-1024x768.jpg
+             */
+            imageUrl?: string;
+            tags?: string[];
+            /** @example true */
+            isActive: boolean;
+            /**
+             * @example discord
+             * @enum {string}
+             */
+            platform?: "discord" | "telegram" | "whatsapp" | "facebook" | "x" | "youtube" | "other";
+            /** Format: uri */
+            url?: string;
+            inviteCode?: string;
+            memberCount?: number;
+            address?: string;
+            city?: string;
+            /** @description ISO 3166-1 alpha-2 country code. */
+            country?: string;
+            geo?: components["schemas"]["GeoPoint"];
+            /** Format: email */
+            contactEmail?: string;
+            contactPhone?: string;
+            meetingSchedule?: string;
+        };
     };
     responses: {
         /** @description The request could not be completed due to a conflict with the current state of the resource. Resolve the conflict and try again. */
@@ -887,6 +1150,17 @@ export interface components {
                     message: string;
                     /** @example NOT_IMPLEMENTED */
                     code: string;
+                };
+            };
+        };
+        /** @description The upstream content source (Sanity) returned an error or was unreachable. The response is structurally valid but the request could not be fulfilled. */
+        BadGateway: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    message: string;
                 };
             };
         };
@@ -1018,7 +1292,7 @@ export interface operations {
                  */
                 chapter_number_end?: number;
                 /**
-                 * @description First verse to include within `chapter_number_start`, 1-based. Defaults to 1 when omitted. Ignored when `verses` is provided.
+                 * @description First verse to include within `chapter_number_start`. Use `0` for the Basmallah; `1` and above for numbered verses. Defaults to 1 when omitted. Ignored when `verses` is provided.
                  * @example 1
                  */
                 verse_start?: number;
@@ -1168,6 +1442,123 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             500: components["responses"]["InternalServerErrror"];
             501: components["responses"]["NotImplementedError"];
+        };
+    };
+    getRoots: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Arabic prefix filter against root letters. The frontend MUST send space-separated Arabic letters matching the storage form (e.g. `ك ت` or `ك ت ب`); Latin or Buckwalter input is not accepted on the server.
+                 * @example ك ت
+                 */
+                q?: string;
+                /**
+                 * @description Ordering mode. `frequency` orders by descending occurrence count (most-attested first). `abjadi` orders by classical abjadi rank (composite over the first three letters). `reverse` is the inverse abjadi ordering.
+                 * @example frequency
+                 */
+                sort?: "frequency" | "abjadi" | "reverse";
+                /**
+                 * @description Page size. Default 50. No upper bound — paginate via `offset` for large pulls.
+                 * @example 50
+                 */
+                limit?: number;
+                /**
+                 * @description Number of items to skip before returning the page.
+                 * @example 0
+                 */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RootsIndexResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            500: components["responses"]["InternalServerErrror"];
+        };
+    };
+    getRootDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description URL-encoded space-separated Arabic letters of the root (e.g. `%D9%83%20%D8%AA%20%D8%A8` for `ك ت ب`). Must match the storage form exactly.
+                 * @example ك ت ب
+                 */
+                letters: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RootRecord"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerErrror"];
+        };
+    };
+    getRootOccurrences: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Page size. Default 50. No upper bound.
+                 * @example 50
+                 */
+                limit?: number;
+                /**
+                 * @description Number of occurrences to skip before returning the page.
+                 * @example 0
+                 */
+                offset?: number;
+                /**
+                 * @description Optional Arabic surface form filter. When provided, narrows the result set to occurrences where the matched word equals this exact string (used by the Word Lab "click derivative chip" flow). The `total` field reflects the filtered universe.
+                 * @example كِتَاب
+                 */
+                surface?: string;
+            };
+            header?: never;
+            path: {
+                /**
+                 * @description URL-encoded space-separated Arabic letters of the root.
+                 * @example ك ت ب
+                 */
+                letters: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OccurrencesResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerErrror"];
         };
     };
     getBibleBooks: {
@@ -1400,6 +1791,45 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalServerErrror"];
+        };
+    };
+    getCommunities: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Filter by community kind.
+                 * @example online
+                 */
+                kind?: "online" | "physical";
+                /**
+                 * @description ISO 639-1 language code of the community.
+                 * @example en
+                 */
+                language?: string;
+                /**
+                 * @description ISO 3166-1 alpha-2 country code (physical communities only).
+                 * @example US
+                 */
+                country?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Community"][];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            500: components["responses"]["InternalServerErrror"];
+            502: components["responses"]["BadGateway"];
         };
     };
 }

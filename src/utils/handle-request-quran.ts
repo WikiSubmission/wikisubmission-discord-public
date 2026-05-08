@@ -4,6 +4,7 @@ import { DiscordRequest } from "./handle-request";
 import { cachePageData } from "./cache-interaction";
 import { logError } from "./log-error";
 import { wsApi, mapLangCodes } from "./ws-api";
+import { normalizeQuranVerseQuery } from "./normalize-quran-verse-query";
 
 /** Convert API highlight tags (<b>word</b>) to Discord markdown bold (**word**). */
 function hlToMd(text: string): string {
@@ -75,15 +76,20 @@ export class HandleQuranRequest extends DiscordRequest {
   async getResults(): Promise<WDiscordCommandResult> {
     const cmdName = this.interaction.commandName as string;
     const isSearch = cmdName.startsWith("search");
-    const isChapter = cmdName === "chapter" || cmdName === "footnote";
+    const isChapter = cmdName === "chapter";
 
-    const query = isChapter
+    const rawQuery = isChapter
       ? this.getStringInput("chapter")
       : isSearch
         ? this.getStringInput("query")
         : this.getStringInput("verse");
 
-    if (!query) throw new Error(`Missing query`);
+    if (!rawQuery) throw new Error(`Missing query`);
+
+    const query =
+      isSearch || isChapter
+        ? rawQuery.trim()
+        : normalizeQuranVerseQuery(rawQuery);
 
     const withTranslit = this.getStringInput("with-transliteration") === "yes";
     const targetLang = this.targetLanguage();

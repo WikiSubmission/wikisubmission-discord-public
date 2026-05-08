@@ -9,7 +9,7 @@ export default function command(): WSlashCommand {
     options: [
       {
         name: "verse",
-        description: "Verse #:# (or #:#-#)",
+        description: "Verse #:#, # #, or #:#-#",
         required: true,
         type: ApplicationCommandOptionType.String,
         name_localizations: {
