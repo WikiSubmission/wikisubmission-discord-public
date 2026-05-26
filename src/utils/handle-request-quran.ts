@@ -179,13 +179,15 @@ export class HandleQuranRequest extends DiscordRequest {
 
           // [Text]
           if (!footnoteOnly) {
-            verseContent += `**[${result.vk}]** ${translation?.tx ?? ""}\n\n`;
+            const isArabicPrimary = targetLang === "arabic";
+            const linePrefix = isArabicPrimary ? "## " : "";
+            verseContent += `${linePrefix}**[${result.vk}]** ${translation?.tx ?? ""}\n\n`;
           }
 
           // [Arabic] (equran: English + Arabic)
           if (targetLang === "englishAndArabic" && !footnoteOnly) {
             const arabicTr = tr["ar"];
-            verseContent += `**[${result.vk}]** ${arabicTr?.tx ?? ""}\n\n`;
+            verseContent += `## **[${result.vk}]** ${arabicTr?.tx ?? ""}\n\n`;
           }
 
           // [Transliteration]
