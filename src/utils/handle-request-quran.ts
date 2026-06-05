@@ -5,11 +5,9 @@ import { cachePageData } from "./cache-interaction";
 import { logError } from "./log-error";
 import { wsApi, mapLangCodes } from "./ws-api";
 import { normalizeQuranVerseQuery } from "./normalize-quran-verse-query";
+import type { components } from "../api/types.gen";
 
-/** Convert API highlight tags (<b>word</b>) to Discord markdown bold (**word**). */
-function hlToMd(text: string): string {
-  return text.replace(/<b>(.*?)<\/b>/g, "**$1**");
-}
+type QuranVerse = components["schemas"]["VerseData"];
 
 export class HandleQuranRequest extends DiscordRequest {
   constructor(
@@ -91,12 +89,21 @@ export class HandleQuranRequest extends DiscordRequest {
         ? rawQuery.trim()
         : normalizeQuranVerseQuery(rawQuery);
 
-    const withTranslit = this.getStringInput("with-transliteration") === "yes";
+    const withTranslit =
+      this.getStringInput("with-transliteration") === "yes" ||
+      this.getStringInput("transliteration") === "yes";
     const targetLang = this.targetLanguage();
-    const langs = mapLangCodes(targetLang, withTranslit);
+    const includeArabic = this.getStringInput("with-arabic") === "yes";
+    const baseLangs = mapLangCodes(targetLang, withTranslit);
+    const langs =
+      includeArabic && !baseLangs.includes("ar")
+        ? [...baseLangs, "ar"]
+        : baseLangs;
     const primaryLang = langs[0];
 
-    const includeCommentary = this.getStringInput("no-commentary") !== "yes";
+    const includeCommentary =
+      this.getStringInput("no-commentary") !== "yes" &&
+      this.getStringInput("no-footnotes") !== "yes";
     const footnoteOnly = this.options?.footnoteOnly ?? false;
 
     // --- Call the appropriate endpoint ---
@@ -154,54 +161,60 @@ export class HandleQuranRequest extends DiscordRequest {
     // --- Build verse content strings ---
     const verses: string[] = [];
 
+    const buildVerseContent = (result: QuranVerse): string => {
+      const tr = result.tr ?? {};
+      const translation = tr[primaryLang];
+      let verseContent = "";
+
+      // [Subtitle]
+      if (translation?.s && includeCommentary && !footnoteOnly) {
+        verseContent += `\`${translation.s}\`\n\n`;
+      }
+
+      // [Text]
+      if (!footnoteOnly) {
+        const isArabicPrimary = targetLang === "arabic";
+        const linePrefix = isArabicPrimary ? "### " : "";
+        verseContent += `${linePrefix}**[${result.vk}]** ${translation?.tx ?? ""}\n\n`;
+      }
+
+      // [Arabic] (equran / with-arabic)
+      if (
+        (targetLang === "englishAndArabic" || includeArabic) &&
+        targetLang !== "arabic" &&
+        !footnoteOnly
+      ) {
+        const arabicTr = tr["ar"];
+        verseContent += `### **[${result.vk}]** ${arabicTr?.tx ?? ""}\n\n`;
+      }
+
+      // [Transliteration]
+      if (withTranslit) {
+        const translitTr = tr["tl"];
+        verseContent += `${translitTr?.tx ?? ""}\n\n`;
+      }
+
+      // [Footnote]
+      if (translation?.f && (includeCommentary || footnoteOnly)) {
+        verseContent += `*${translation.f}*\n\n`;
+      }
+
+      return verseContent.trim();
+    };
+
     if (isSearch) {
       for (const chapter of chapters) {
-        for (const verse of chapter.verses ?? []) {
-          const tr = verse.tr ?? {};
-          const translation = tr[primaryLang];
-          if (!translation) continue;
-          const raw = (translation.hl || translation.tx) ?? "";
-          if (!raw) continue;
-          verses.push(`**[${verse.vk}]** ${hlToMd(raw)}`);
+        for (const result of chapter.verses ?? []) {
+          const verseContent = buildVerseContent(result);
+          if (verseContent) {
+            verses.push(verseContent);
+          }
         }
       }
     } else {
       for (const chapter of chapters) {
         for (const result of (chapter.verses ?? []).slice(0, 350)) {
-          const tr = result.tr ?? {};
-          const translation = tr[primaryLang];
-          let verseContent = "";
-
-          // [Subtitle]
-          if (translation?.s && includeCommentary && !footnoteOnly) {
-            verseContent += `\`${translation.s}\`\n\n`;
-          }
-
-          // [Text]
-          if (!footnoteOnly) {
-            const isArabicPrimary = targetLang === "arabic";
-            const linePrefix = isArabicPrimary ? "### " : "";
-            verseContent += `${linePrefix}**[${result.vk}]** ${translation?.tx ?? ""}\n\n`;
-          }
-
-          // [Arabic] (equran: English + Arabic)
-          if (targetLang === "englishAndArabic" && !footnoteOnly) {
-            const arabicTr = tr["ar"];
-            verseContent += `### **[${result.vk}]** ${arabicTr?.tx ?? ""}\n\n`;
-          }
-
-          // [Transliteration]
-          if (withTranslit) {
-            const translitTr = tr["tl"];
-            verseContent += `${translitTr?.tx ?? ""}\n\n`;
-          }
-
-          // [Footnote]
-          if (translation?.f && (includeCommentary || footnoteOnly)) {
-            verseContent += `*${translation.f}*\n\n`;
-          }
-
-          verses.push(verseContent.trim());
+          verses.push(buildVerseContent(result));
         }
       }
     }
@@ -289,22 +302,20 @@ export class HandleQuranRequest extends DiscordRequest {
     const pages: string[] = [];
     let currentPage = "";
 
-    for (let i = 0; i < verses.length; i++) {
-      const verse = verses[i];
-      const verseWithSeparator =
-        currentPage.length > 0 ? "\n\n" + verse : verse;
-      const currentPageLength = currentPage.length + verseWithSeparator.length;
+    for (const verse of verses) {
+      for (const chunk of this.splitLongText(verse, maxChunkLength)) {
+        const chunkWithSeparator =
+          currentPage.length > 0 ? "\n\n" + chunk : chunk;
+        const currentPageLength = currentPage.length + chunkWithSeparator.length;
 
-      if (currentPageLength > maxChunkLength) {
-        if (currentPage.length > 0) {
-          pages.push(currentPage.trim());
-          currentPage = verse;
+        if (currentPageLength > maxChunkLength) {
+          if (currentPage.length > 0) {
+            pages.push(currentPage.trim());
+          }
+          currentPage = chunk;
         } else {
-          // If a single verse is too long, include it anyway
-          pages.push(verse);
+          currentPage += chunkWithSeparator;
         }
-      } else {
-        currentPage += verseWithSeparator;
       }
     }
 
@@ -313,5 +324,35 @@ export class HandleQuranRequest extends DiscordRequest {
     }
 
     return pages;
+  }
+
+  private splitLongText(text: string, maxChunkLength: number): string[] {
+    const chunks: string[] = [];
+    let remaining = text.trim();
+
+    while (remaining.length > maxChunkLength) {
+      let splitAt = remaining.lastIndexOf("\n\n", maxChunkLength);
+
+      if (splitAt < maxChunkLength * 0.6) {
+        splitAt = remaining.lastIndexOf("\n", maxChunkLength);
+      }
+
+      if (splitAt < maxChunkLength * 0.6) {
+        splitAt = remaining.lastIndexOf(" ", maxChunkLength);
+      }
+
+      if (splitAt < 1) {
+        splitAt = maxChunkLength;
+      }
+
+      chunks.push(remaining.slice(0, splitAt).trim());
+      remaining = remaining.slice(splitAt).trim();
+    }
+
+    if (remaining.length > 0) {
+      chunks.push(remaining);
+    }
+
+    return chunks;
   }
 }
