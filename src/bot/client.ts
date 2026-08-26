@@ -3,6 +3,7 @@ import {
   Client,
   ClientEvents,
   GatewayIntentBits,
+  Partials,
   REST,
   Routes,
 } from "discord.js";
@@ -22,7 +23,10 @@ export class Bot {
     intents: [
       // [Non-privileged intents]
       GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMessageReactions,
     ],
+    // Reactions on messages sent before the current session arrive as partials.
+    partials: [Partials.Message, Partials.Reaction, Partials.User],
     // [Define presence]
     presence: {
       status: "online",
