@@ -172,10 +172,14 @@ export class HandleQuranRequest extends DiscordRequest {
       }
 
       // [Text]
+      const withArabicBelow =
+        (targetLang === "englishAndArabic" || includeArabic) &&
+        targetLang !== "arabic" &&
+        !footnoteOnly;
       if (!footnoteOnly) {
         const isArabicPrimary = targetLang === "arabic";
         const linePrefix = isArabicPrimary ? "### " : "";
-        verseContent += `${linePrefix}**[${result.vk}]** ${translation?.tx ?? ""}\n\n`;
+        verseContent += `${linePrefix}**[${result.vk}]** ${translation?.tx ?? ""}\n${withArabicBelow ? "" : "\n"}`;
       }
 
       // [Arabic] (equran / with-arabic)
@@ -199,7 +203,9 @@ export class HandleQuranRequest extends DiscordRequest {
         verseContent += `*${translation.f}*\n\n`;
       }
 
-      return verseContent.trim();
+      const trimmed = verseContent.trim();
+      // Zero-width spacer line widens the gap before the next verse
+      return withArabicBelow && trimmed ? `${trimmed}\n\u200b` : trimmed;
     };
 
     if (isSearch) {
